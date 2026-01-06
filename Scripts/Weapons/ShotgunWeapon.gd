@@ -59,8 +59,29 @@ func _fire_ray_with_spread():
 				effect.look_at(point + normal, Vector3.RIGHT)
 				
 		# Dégâts
-		if collider.has_method("take_damage"):
-			collider.take_damage(damage) # Dégâts PAR PLOMB
+		if collider:
+			# D'abord on cherche un HealthComponent
+			var health_comp = collider.get_node_or_null("HealthComponent")
+			if health_comp:
+				health_comp.take_damage(damage)
+			elif collider.has_method("take_damage"):
+				collider.take_damage(damage) # Dégâts PAR PLOMB
+			else:
+				# C'est un mur/objet sans vie -> On met un Decal (trou de balle)
+				if decal_scene:
+					var decal = decal_scene.instantiate()
+					collider.add_child(decal)
+					decal.global_position = point
+					
+					# Orientation du decal selon la normale
+					if normal != Vector3.UP and normal != Vector3.DOWN:
+						decal.look_at(point + normal, Vector3.UP)
+					else:
+						decal.look_at(point + normal, Vector3.RIGHT)
+					
+					decal.rotate_object_local(Vector3.RIGHT, deg_to_rad(-90))
+					
+		# Legacy check
 		elif collider.has_node("HealthComponent"):
 			collider.get_node("HealthComponent").take_damage(damage)
 	else:
@@ -72,3 +93,58 @@ func _fire_ray_with_spread():
 		
 	# Reset rotation
 	raycast_node.rotation = original_rotation
+
+# OVERRIDE: Shell-by-Shell Reload
+func start_reload():
+	print("Shotgun: start_reload called. IsReloading: ", is_reloading, " Ammo: ", current_ammo, " Reserve: ", reserve_ammo)
+	if is_reloading: return
+	if current_ammo == max_ammo: return
+	if reserve_ammo <= 0: return
+	
+	print("Shotgun: Starting reload sequence.")
+	is_reloading = true
+	_reload_shell()
+
+func _reload_shell():
+	# Check conditions pour continuer
+	if not is_reloading: return # Cancelled
+	if current_ammo >= max_ammo or reserve_ammo <= 0:
+		is_reloading = false
+		emit_signal("reloading_finished")
+		return
+		
+	emit_signal("reloading_started") # Declenche Anim + Son
+	
+	# Son spécifique shotgun si besoin (déjà géré par reloading_started via Weapon.gd s'il est generic, 
+	# mais ici on veut le jouer à chaque shell. Weapon.gd le joue dans start_reload.
+	# Comme on override start_reload, Weapon.gd ne le joue PAS.
+	# On doit le jouer ici.
+	if reload_sound:
+		play_sound(reload_sound, 0.95, 1.05)
+	
+	# Attendre le temps d'insertion (peut être plus court que le reload_time global)
+	# Disons 0.6s par cartouche
+	await get_tree().create_timer(0.6).timeout
+	
+	if not is_reloading: return # Cancelled pendant le wait
+	
+	# Ajout d'une cartouche
+	current_ammo += 1
+	reserve_ammo -= 1
+	emit_signal("ammo_changed", current_ammo, reserve_ammo)
+	
+	# Loop
+	_reload_shell()
+
+# OVERRIDE: Allow shooting to interrupt reload
+func shoot():
+	if is_reloading:
+		# On ne peut interrompre que si on a au moins une balle pour tirer
+		if current_ammo > 0:
+			# Interrupt reload
+			is_reloading = false
+			emit_signal("reloading_finished") # Reset anims
+			
+			super.shoot()
+	else:
+		super.shoot()

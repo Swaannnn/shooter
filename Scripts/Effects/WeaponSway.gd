@@ -14,6 +14,23 @@ var bob_time: float = 0.0
 
 func _ready():
 	initial_pos = position
+	_connect_to_weapon()
+
+func _connect_to_weapon():
+	var node = get_parent()
+	while node:
+		if node is Weapon:
+			if not node.fired.is_connected(_on_weapon_fired):
+				node.fired.connect(_on_weapon_fired)
+			break
+		node = node.get_parent()
+
+func _on_weapon_fired():
+	# Coup de fusil visuel
+	# Recul Z (vers l'arrière) + Y (montée légère)
+	# Valeurs hardcodées pour le "feel" universel, ou à récupérer du Weapon si ajouté
+	print("WeaponSway: Visual Kick triggered!")
+	apply_visual_recoil(0.15, 0.05)
 
 func _input(event):
 	if event is InputEventMouseMotion:
@@ -41,8 +58,22 @@ func _process(delta):
 		var bob_x = cos(bob_time / 2.0) * bob_amp # Mouvement en 8
 		final_pos += Vector3(bob_x, bob_y, 0)
 	
+	# 3. Visual Recoil Kick
+	if current_recoil_kick.length() > 0.001:
+		final_pos += current_recoil_kick
+		# Recovery
+		current_recoil_kick = current_recoil_kick.lerp(Vector3.ZERO, rec_recovery * delta)
+	
 	# Application
 	position = position.lerp(final_pos, delta * sway_smooth)
 	
 	# Reset input (car _input n'est pas appelé chaque frame si la souris ne bouge pas)
 	mouse_input = Vector2.ZERO
+
+var current_recoil_kick: Vector3 = Vector3.ZERO
+var rec_recovery: float = 10.0
+
+func apply_visual_recoil(amount_z: float, amount_y: float):
+	# Z positif = vers l'arrière pour une arme en main (dépend du repère)
+	# Habituellement -Z est devant. Donc +Z vient vers la caméra.
+	current_recoil_kick += Vector3(0, amount_y, amount_z)

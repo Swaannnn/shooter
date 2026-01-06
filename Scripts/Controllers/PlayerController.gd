@@ -11,11 +11,16 @@ var pause_scene = preload("res://Scenes/UI/PauseMenu.tscn")
 var sound_jump = preload("res://Assets/Sounds/jump.mp3")
 var sound_run = preload("res://Assets/Sounds/run.mp3")
 var sound_walk = preload("res://Assets/Sounds/walk.mp3")
+# Nouveaux sons
+var sound_crouch = preload("res://test/crouch.mp3")
+var sound_slide = preload("res://test/slide.mp3")
 
 # Audio Players
 var audio_jump: AudioStreamPlayer = null
 var audio_run: AudioStreamPlayer = null
 var audio_walk: AudioStreamPlayer = null
+var audio_crouch: AudioStreamPlayer = null
+var audio_slide: AudioStreamPlayer = null
 
 # Movement Config
 @export var speed_walk = 5.0
@@ -41,6 +46,15 @@ var slide_vector = Vector3.ZERO
 var default_height = 2.0 # Default capsule height (assuming 2.0)
 var original_camera_y = 0.0
 
+# Recoil System
+var mouse_rotation_x: float = 0.0 # Rotation X brute (input souris) sans le recul
+var current_recoil_x: float = 0.0 # Recul actuel en degrés (PITCH)
+var current_recoil_y: float = 0.0 # Recul actuel en degrés (YAW - Horizontal)
+var target_recoil_x: float = 0.0 # Cible du recul
+var recoil_recovery_speed: float = 5.0
+
+var is_dead: bool = false # Added new variable
+
 var collision_shape: CollisionShape3D = null
 var original_capsule_height = 2.0
 
@@ -63,6 +77,16 @@ func _ready():
 	audio_walk.bus = "SFX"
 	add_child(audio_walk)
 	
+	audio_crouch = AudioStreamPlayer.new()
+	audio_crouch.stream = sound_crouch
+	audio_crouch.bus = "SFX"
+	add_child(audio_crouch)
+	
+	audio_slide = AudioStreamPlayer.new()
+	audio_slide.stream = sound_slide
+	audio_slide.bus = "SFX"
+	add_child(audio_slide)
+	
 	# Recherche plus robuste de la caméra (récursive)
 	camera = _find_camera_node(self)
 	
@@ -71,6 +95,9 @@ func _ready():
 	else:
 		print("Camera trouvée : " + camera.name)
 		original_camera_y = camera.position.y
+		mouse_rotation_x = camera.rotation.x
+		
+	add_to_group("player")
 		
 	# Assume CollisionShape is a child named "CollisionShape3D" and has a CapsuleShape3D
 	# We will find it dynamically if needed or assume standard structure
@@ -95,6 +122,31 @@ func _ready():
 	
 	# Recherche de l'arme et connexion
 	_find_and_connect_weapon(self)
+	
+	# Connexion HealthComponent
+	var health_comp = get_node_or_null("HealthComponent")
+	if health_comp:
+		health_comp.health_changed.connect(_on_health_changed)
+		health_comp.died.connect(_on_died)
+		# Update UI init
+		_on_health_changed(0, health_comp.current_health)
+
+func _on_died():
+	if is_dead: return
+	is_dead = true
+	print("Player Died! Switching to Spectator Mode.")
+	
+	# Désactiver les collisions
+	$CollisionShape3D.disabled = true
+	
+	# Cacher l'arme et les bras
+	if current_weapon:
+		current_weapon.visible = false
+	
+	# Optionnel: Cacher le HUD ou afficher "DEAD"
+	# if hud_instance: hud_instance.visible = false 
+	
+	# On garde la caméra active, mais on change la logique de mouvement dans physics_process
 
 func _on_quit_game():
 	get_tree().quit()
@@ -133,7 +185,11 @@ func _on_weapon_bought(weapon_path):
 		# Ou on appelle manuellement la connexion
 		current_weapon = new_weapon
 		current_weapon.ammo_changed.connect(_on_ammo_changed)
-		_on_ammo_changed(current_weapon.max_ammo)
+		if not current_weapon.fired.is_connected(_on_weapon_fired):
+			current_weapon.fired.connect(_on_weapon_fired)
+			print("PlayerController (Shop): Signal 'fired' Connected")
+			
+		_on_ammo_changed(current_weapon.current_ammo, current_weapon.reserve_ammo)
 		
 func _toggle_shop():
 	is_shop_open = !is_shop_open
@@ -144,19 +200,57 @@ func _toggle_shop():
 	else:
 		Input.set_mouse_mode(Input.MOUSE_MODE_CAPTURED)
 
-func _find_and_connect_weapon(node: Node):
+func _find_and_connect_weapon(node: Node) -> bool:
+	print("Searching for weapon in: ", node.name)
 	for child in node.get_children():
 		if child is Weapon:
+			print("Weapon FOUND: ", child.name)
 			current_weapon = child
 			current_weapon.ammo_changed.connect(_on_ammo_changed)
+			if not current_weapon.fired.is_connected(_on_weapon_fired):
+				current_weapon.fired.connect(_on_weapon_fired)
+				print("Signal 'fired' Connected to _on_weapon_fired")
+			else:
+				print("Signal 'fired' ALREADY connected")
+			
 			# Initial update
-			_on_ammo_changed(current_weapon.max_ammo)
-			return
-		_find_and_connect_weapon(child)
+			_on_ammo_changed(current_weapon.current_ammo, current_weapon.reserve_ammo)
+			return true
+		
+		if _find_and_connect_weapon(child):
+			return true
+			
+	return false
 
-func _on_ammo_changed(amount):
+func _on_ammo_changed(amount, reserve = 0):
 	if hud_instance:
+		# On passe aussi la réserve (faudrait mettre à jour le HUD pour l'afficher)
 		hud_instance.update_ammo(amount, current_weapon.max_ammo if current_weapon else 0)
+
+func _on_weapon_fired():
+	# Ajout du recul
+	if current_weapon:
+		# On récupère le vecteur de recul (X=Pitch, Y=Yaw)
+		var recoil_vec = current_weapon.get_recoil_vector()
+		
+		# PITCH (Vertical)
+		current_recoil_x += recoil_vec.x
+		if current_recoil_x > current_weapon.max_recoil_deg:
+			current_recoil_x = current_weapon.max_recoil_deg
+			
+		# YAW (Horizontal / Spray)
+		# Pas de clamp strict sur le yaw, ça dépend pattern
+		current_recoil_y += recoil_vec.y
+		# On peut clamper le Y si besoin pour pas tourner à 360
+		current_recoil_y = clamp(current_recoil_y, -15.0, 15.0)
+			
+		recoil_recovery_speed = current_weapon.recoil_recovery
+		# print("Recoil applied! Vec: ", recoil_vec)
+
+func _on_health_changed(amount, current):
+	if hud_instance:
+		hud_instance.update_health(current)
+	# Feedback visuel de dégats ? (Flash rouge)
 
 # Fonction utilitaire pour chercher une Camera3D dans tous les descendants
 func _find_camera_node(node: Node) -> Camera3D:
@@ -187,31 +281,75 @@ func _unhandled_input(event):
 	
 	if event is InputEventMouseMotion:
 		rotate_y(-event.relative.x * sensitivity)
-		camera.rotate_x(-event.relative.y * sensitivity)
-		camera.rotation.x = clamp(camera.rotation.x, deg_to_rad(-90), deg_to_rad(90))
+		# On modifie la valeur logique, pas directement la caméra (qui recevra aussi le recul)
+		mouse_rotation_x -= event.relative.y * sensitivity
+		mouse_rotation_x = clamp(mouse_rotation_x, deg_to_rad(-90), deg_to_rad(90))
+		# NOTE: On applique pas tout de suite à la caméra, ce sera fait dans _physics_process
 
 func _physics_process(delta):
 	# Add the gravity.
-	if not is_on_floor():
+	if not is_on_floor() and not is_dead:
 		velocity.y -= gravity * delta
 
 	# Handle Jump.
-	if Input.is_action_just_pressed("jump") and is_on_floor():
+	if Input.is_action_just_pressed("jump") and is_on_floor() and not is_dead:
 		velocity.y = jump_velocity
 		audio_jump.play()
 
+	# Gestion du retour du recul (Recovery)
+	if current_weapon:
+		var current_time = Time.get_ticks_msec() / 1000.0
+		var time_since_fire = current_time - current_weapon.get("last_fire_time")
+		
+		if time_since_fire > 0.4:
+			# APRES le tir (Idle) : Recovery accéléré pour un reset net
+			# User request: "Commence direct, mais plus lent qu'il monte" + "Pas de TP à la fin"
+			# + "Augmente de 0.5s" -> On ralentit encore le retour
+			# Multiplicateur réduit à 1.0 (Vitesse normale) pour un atterrissage en douceur
+			var fast_recovery = recoil_recovery_speed * 1.0
+			current_recoil_x = move_toward(current_recoil_x, 0.0, fast_recovery * delta)
+			current_recoil_y = move_toward(current_recoil_y, 0.0, fast_recovery * delta)
+			
+			# Snap to zero: Seuil minime pour éviter le TP visible
+			if abs(current_recoil_x) < 0.01: current_recoil_x = 0.0
+			if abs(current_recoil_y) < 0.01: current_recoil_y = 0.0
+		else:
+			# PENDANT ou JUSTE APRES : Recovery normale
+			# Pour le Pistolet, le user veut que ça redescende "direct" mais "smooth".
+			# Donc on applique la recovery tout le temps.
+			current_recoil_x = move_toward(current_recoil_x, 0.0, recoil_recovery_speed * delta)
+			current_recoil_y = move_toward(current_recoil_y, 0.0, recoil_recovery_speed * delta)
+	else:
+		current_recoil_x = move_toward(current_recoil_x, 0.0, recoil_recovery_speed * delta)
+		current_recoil_y = move_toward(current_recoil_y, 0.0, recoil_recovery_speed * delta)
+	
+	if camera:
+		# Application finale:
+		# PITCH (X) : mouse_rotation_x + Recul (toujours positif accumulé, on l'ajoute/soustrait selon le sens voulu)
+		# User wanted UP -> So we subtract absolute recoil value to X (Negative X = Look Up).
+		# Mais le user a dit que "mouse + abs()" montait. (Probablement mouse_x est inversé quelque part, bref on garde ce qui marche).
+		camera.rotation.x = mouse_rotation_x + deg_to_rad(abs(current_recoil_x))
+		
+		# YAW (Y) : Recul Horizontal
+		# On applique ça sur la caméra uniquement (pas le corps du joueur), pour que le crosshair bouge
+		# mais que le "devant" du joueur reste stable (plus simple pour la recovery).
+		# Attention : camera.rotation.y est généralement 0.
+		camera.rotation.y = deg_to_rad(current_recoil_y)
+
 	# Gestion du tir
-	if current_weapon and not is_shop_open:
+	if current_weapon and not is_shop_open and not is_dead: # Added not is_dead
 		if current_weapon.automatic:
 			if Input.is_action_pressed("fire"):
 				current_weapon.shoot()
 		else:
 			if Input.is_action_just_pressed("fire"):
 				current_weapon.shoot()
-		
+				
+		# Rechargement
+		if Input.is_key_pressed(KEY_R):
+			current_weapon.start_reload()
+	
 	# --- Crouch & Slide System ---
-	# On utilise la touche CONTROL (faut vérifier si l'action 'crouch' est mappée ou utiliser un check clavier direct)
-	# Pour simplifier on va accepter 'crouch' s'il existe, ou KEY_CTRL
 	var crouch_pressed = Input.is_key_pressed(KEY_CTRL) or Input.is_action_pressed("crouch")
 	
 	if crouch_pressed:
@@ -229,6 +367,9 @@ func _physics_process(delta):
 				slide_vector = Vector3(slide_dir.x, 0, slide_dir.y) * slide_speed_boost
 				velocity.x = slide_vector.x
 				velocity.z = slide_vector.z
+				
+				# Son de slide
+				if audio_slide: audio_slide.play()
 				
 			_update_crouch_visuals(true)
 	else:
@@ -300,6 +441,13 @@ func _physics_process(delta):
 
 # Fonction helper pour animer la caméra/collider
 func _update_crouch_visuals(crouching: bool):
+	# Son de crouch/stand (bruit de tissu)
+	if audio_crouch: 
+		# On joue le son aussi bien en se baissant qu'en se relevant
+		if not audio_crouch.playing: # Evite le spam si spam touche
+			audio_crouch.pitch_scale = randf_range(0.9, 1.1)
+			audio_crouch.play()
+			
 	var tween = get_tree().create_tween()
 	
 	# Gestion Camera

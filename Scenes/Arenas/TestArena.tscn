@@ -1,62 +1,184 @@
-[gd_scene load_steps=3 format=3 uid="uid://b8j2x4k5l6m7n"]
+[gd_scene load_steps=10 format=3 uid="uid://c8q4f7j6k2l1"]
 
-[ext_resource type="PackedScene" uid="uid://bn6wfax82j7jo" path="res://Scenes/Characters/Player.tscn" id="1_5f4m4"]
-[ext_resource type="PackedScene" path="res://Scenes/Characters/TrainingTarget.tscn" id="2_b1c6n"]
+[ext_resource type="Material" uid="uid://mat_floor_concrete" path="res://Assets/Materials/Mat_Floor.tres" id="1_floor"]
+[ext_resource type="Material" uid="uid://mat_wall_panel" path="res://Assets/Materials/Mat_Wall.tres" id="2_wall"]
+[ext_resource type="Material" uid="uid://mat_box_orange" path="res://Assets/Materials/Mat_Box.tres" id="3_box"]
+[ext_resource type="Material" uid="uid://mat_neon_blue" path="res://Assets/Materials/Mat_Neon.tres" id="4_neon"]
+[ext_resource type="PackedScene" uid="uid://b5s0x1q2w3e4" path="res://Scenes/Characters/Player.tscn" id="5_player"]
+
+[sub_resource type="ProceduralSkyMaterial" id="ProceduralSkyMaterial_night"]
+sky_top_color = Color(0.1, 0.1, 0.2, 1)
+sky_horizon_color = Color(0.2, 0.2, 0.3, 1)
+ground_bottom_color = Color(0.1, 0.1, 0.15, 1)
+ground_horizon_color = Color(0.2, 0.2, 0.3, 1)
+
+[sub_resource type="Sky" id="Sky_night"]
+sky_material = SubResource("ProceduralSkyMaterial_night")
+
+[sub_resource type="Environment" id="Environment_arena"]
+background_mode = 2
+sky = SubResource("Sky_night")
+ambient_light_source = 3
+ambient_light_color = Color(0.3, 0.3, 0.4, 1)
+tonemap_mode = 3
+glow_enabled = true
+glow_intensity = 0.8
+glow_bloom = 0.1
+fog_enabled = true
+fog_light_color = Color(0.2, 0.2, 0.3, 1)
+fog_density = 0.01
+volumetric_fog_enabled = true
+volumetric_fog_density = 0.005
 
 [node name="TestArena" type="Node3D"]
 
-[node name="Floor" type="CSGBox3D" parent="."]
+[node name="WorldEnvironment" type="WorldEnvironment" parent="."]
+environment = SubResource("Environment_arena")
+
+[node name="DirectionalLight3D" type="DirectionalLight3D" parent="."]
+transform = Transform3D(0.707107, -0.5, 0.5, 0, 0.707107, 0.707107, -0.707107, -0.5, 0.5, 0, 20, 0)
+light_color = Color(0.8, 0.85, 1, 1)
+light_energy = 2.0
+shadow_enabled = true
+
+[node name="MapGeometry" type="Node3D" parent="."]
+
+[node name="Floor" type="CSGBox3D" parent="MapGeometry"]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -0.5, 0)
 use_collision = true
-size = Vector3(20, 1, 20)
+size = Vector3(60, 1, 40)
+material = ExtResource("1_floor")
 
-[node name="Wall1" type="CSGBox3D" parent="."]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1.5, 10)
+[node name="Ceiling" type="CSGBox3D" parent="MapGeometry"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 12.5, 0)
 use_collision = true
-size = Vector3(20, 3, 1)
+size = Vector3(60, 1, 40)
+material = ExtResource("1_floor")
 
-[node name="Wall2" type="CSGBox3D" parent="."]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1.5, -10)
+[node name="Wall_North" type="CSGBox3D" parent="MapGeometry"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 6, -20.5)
 use_collision = true
-size = Vector3(20, 3, 1)
+size = Vector3(60, 14, 1)
+material = ExtResource("2_wall")
 
-[node name="Wall3" type="CSGBox3D" parent="."]
-transform = Transform3D(-4.37114e-08, 0, 1, 0, 1, 0, -1, 0, -4.37114e-08, 10, 1.5, 0)
+[node name="Wall_South" type="CSGBox3D" parent="MapGeometry"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 6, 20.5)
 use_collision = true
-size = Vector3(20, 3, 1)
+size = Vector3(60, 14, 1)
+material = ExtResource("2_wall")
 
-[node name="Wall4" type="CSGBox3D" parent="."]
-transform = Transform3D(-4.37114e-08, 0, 1, 0, 1, 0, -1, 0, -4.37114e-08, -10, 1.5, 0)
+[node name="Wall_East" type="CSGBox3D" parent="MapGeometry"]
+transform = Transform3D(-4.37114e-08, 0, 1, 0, 1, 0, -1, 0, -4.37114e-08, 30.5, 6, 0)
 use_collision = true
-size = Vector3(20, 3, 1)
+size = Vector3(40, 14, 1)
+material = ExtResource("2_wall")
 
-[node name="Cover1" type="CSGBox3D" parent="."]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -5, 1, -5)
+[node name="Wall_West" type="CSGBox3D" parent="MapGeometry"]
+transform = Transform3D(-4.37114e-08, 0, 1, 0, 1, 0, -1, 0, -4.37114e-08, -30.5, 6, 0)
+use_collision = true
+size = Vector3(40, 14, 1)
+material = ExtResource("2_wall")
+
+[node name="Structures" type="Node3D" parent="."]
+
+[node name="Platform_Center" type="CSGBox3D" parent="Structures"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1.5, 0)
+use_collision = true
+size = Vector3(10, 4, 10)
+material = ExtResource("2_wall")
+
+[node name="Ramp_Center" type="CSGBox3D" parent="Structures"]
+transform = Transform3D(1, 0, 0, 0, 0.866025, -0.5, 0, 0.5, 0.866025, 0, 1, 7.5)
+use_collision = true
+size = Vector3(4, 1, 8)
+material = ExtResource("1_floor")
+
+[node name="Cover_Box1" type="CSGBox3D" parent="Structures"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -15, 1, -10)
 use_collision = true
 size = Vector3(2, 2, 2)
+material = ExtResource("3_box")
 
-[node name="Cover2" type="CSGBox3D" parent="."]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 5, 1, 5)
+[node name="Cover_Box2" type="CSGBox3D" parent="Structures"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 15, 1, 10)
 use_collision = true
 size = Vector3(2, 2, 2)
+material = ExtResource("3_box")
 
-[node name="OmniLight3D" type="OmniLight3D" parent="."]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 5, 0)
-omni_range = 15.0
+[node name="Cover_Long" type="CSGBox3D" parent="Structures"]
+transform = Transform3D(0.866025, 0, 0.5, 0, 1, 0, -0.5, 0, 0.866025, -10, 1, 10)
+use_collision = true
+size = Vector3(6, 2, 1)
+material = ExtResource("3_box")
 
-[node name="Player" parent="." instance=ExtResource("1_5f4m4")]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 2, 0)
+[node name="Climbable_Stack" type="Node3D" parent="Structures"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 20, 0, -15)
 
-[node name="TrainingTarget" parent="." instance=ExtResource("2_b1c6n")]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -4.49, 4.015, 0)
+[node name="Box_Low" type="CSGBox3D" parent="Structures/Climbable_Stack"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.5, 0)
+use_collision = true
+material = ExtResource("3_box")
 
-[node name="TrainingTarget2" parent="." instance=ExtResource("2_b1c6n")]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.97, 1.36, 0)
+[node name="Box_High" type="CSGBox3D" parent="Structures/Climbable_Stack"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 1.5, 1.5, 0)
+use_collision = true
+size = Vector3(1, 3, 1)
+material = ExtResource("3_box")
 
-[node name="TrainingTarget3" parent="." instance=ExtResource("2_b1c6n")]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 1.47, -4.19, 0)
+[node name="Lights" type="Node3D" parent="."]
 
-[node name="TrainingTarget4" parent="." instance=ExtResource("2_b1c6n")]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -1.6, -1.37, 0)
+[node name="Neon_Bar1" type="CSGBox3D" parent="Lights"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 8, -19.9)
+size = Vector3(20, 0.5, 0.2)
+material = ExtResource("4_neon")
 
-[editable path="Player"]
+[node name="OmniLight3D" type="OmniLight3D" parent="Lights/Neon_Bar1"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 2)
+light_color = Color(0, 0.8, 1, 1)
+light_energy = 3.0
+omni_range = 20.0
+
+[node name="Neon_Bar2" type="CSGBox3D" parent="Lights"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 8, 19.9)
+size = Vector3(20, 0.5, 0.2)
+material = ExtResource("4_neon")
+
+[node name="OmniLight3D2" type="OmniLight3D" parent="Lights/Neon_Bar2"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, -2)
+light_color = Color(0, 0.8, 1, 1)
+light_energy = 3.0
+omni_range = 20.0
+
+[node name="Center_Light" type="OmniLight3D" parent="Lights"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 10, 0)
+light_color = Color(1, 0.95, 0.9, 1)
+light_energy = 8.0
+omni_range = 40.0
+shadow_enabled = true
+
+[node name="Corner_Light1" type="OmniLight3D" parent="Lights"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -25, 8, -15)
+light_color = Color(1, 0.8, 0.6, 1)
+light_energy = 5.0
+omni_range = 20.0
+
+[node name="Corner_Light2" type="OmniLight3D" parent="Lights"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 25, 8, -15)
+light_color = Color(1, 0.8, 0.6, 1)
+light_energy = 5.0
+omni_range = 20.0
+
+[node name="Corner_Light3" type="OmniLight3D" parent="Lights"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 25, 8, 15)
+light_color = Color(1, 0.8, 0.6, 1)
+light_energy = 5.0
+omni_range = 20.0
+
+[node name="Corner_Light4" type="OmniLight3D" parent="Lights"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -25, 8, 15)
+light_color = Color(1, 0.8, 0.6, 1)
+light_energy = 5.0
+omni_range = 20.0
+
+[node name="Player" parent="." instance=ExtResource("5_player")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 2, 10)

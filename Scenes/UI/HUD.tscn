@@ -26,7 +26,7 @@ custom_minimum_size = Vector2(4, 4)
 layout_mode = 2
 mouse_filter = 2
 
-[node name="MarginContainer" type="MarginContainer" parent="."]
+[node name="AmmoContainer" type="MarginContainer" parent="."]
 layout_mode = 1
 anchors_preset = 3
 anchor_left = 1.0
@@ -40,8 +40,27 @@ grow_vertical = 0
 theme_override_constants/margin_right = 50
 theme_override_constants/margin_bottom = 50
 
-[node name="AmmoLabel" type="Label" parent="MarginContainer"]
+[node name="AmmoLabel" type="Label" parent="AmmoContainer"]
 layout_mode = 2
 theme_override_font_sizes/font_size = 32
 text = "10 / 10"
 horizontal_alignment = 2
+
+[node name="HealthContainer" type="MarginContainer" parent="."]
+layout_mode = 1
+anchors_preset = 2
+anchor_top = 1.0
+anchor_bottom = 1.0
+offset_top = -40.0
+offset_right = 40.0
+grow_vertical = 0
+theme_override_constants/margin_left = 50
+theme_override_constants/margin_bottom = 50
+
+[node name="HealthLabel" type="Label" parent="HealthContainer"]
+layout_mode = 2
+size_flags_vertical = 8
+theme_override_colors/font_color = Color(1, 0.28, 0.28, 1)
+theme_override_font_sizes/font_size = 32
+text = "HP: 100"
+vertical_alignment = 2

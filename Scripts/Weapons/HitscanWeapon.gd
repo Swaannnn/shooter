@@ -4,8 +4,20 @@ class_name HitscanWeapon
 @export var max_distance: float = 100.0
 @export var raycast_node: RayCast3D # Référence au RayCast3D de l'arme ou de la caméra
 @export var impact_effect_scene: PackedScene # Scène à instancier à l'impact
+@export var decal_scene: PackedScene # Scène de trou de balle (Decal)
 @export var tracer_scene: PackedScene # Scène du tracé de balle
 @export var muzzle_point: Marker3D # Point de sortie du canon (dans le modèle visuel)
+
+func _ready():
+	super._ready()
+	# Délai pour être sûr que tout est initialisé
+	await get_tree().process_frame
+	
+	if raycast_node:
+		# On cherche le joueur pour l'ignorer
+		var players = get_tree().get_nodes_in_group("player")
+		for p in players:
+			raycast_node.add_exception(p)
 
 func _perform_shoot():
 	if not raycast_node:
@@ -29,7 +41,7 @@ func _perform_shoot():
 		var normal = raycast_node.get_collision_normal()
 		end_pos = point
 		
-		# Effet visuel d'impact
+		# Impact Effect
 		if impact_effect_scene:
 			var effect = impact_effect_scene.instantiate()
 			get_tree().root.add_child(effect)
@@ -38,12 +50,33 @@ func _perform_shoot():
 				effect.look_at(point + normal, Vector3.UP)
 			elif normal == Vector3.UP:
 				effect.look_at(point + normal, Vector3.RIGHT)
-		
-		# Vérifier si l'objet touché a un HealthComponent ou une méthode take_damage
-		if collider.has_method("take_damage"):
-			collider.take_damage(damage)
-		elif collider.has_node("HealthComponent"):
-			collider.get_node("HealthComponent").take_damage(damage)
+				
+		# Dégâts via HealthComponent (Standard)
+		if collider:
+			# D'abord on cherche un HealthComponent
+			var health_comp = collider.get_node_or_null("HealthComponent")
+			if health_comp:
+				health_comp.take_damage(damage)
+			elif collider.has_method("take_damage"):
+				collider.take_damage(damage)
+			else:
+				# C'est un mur/objet sans vie -> On met un Decal (trou de balle)
+				if decal_scene:
+					var decal = decal_scene.instantiate()
+					collider.add_child(decal)
+					decal.global_position = point
+					
+					# Orientation du decal selon la normale
+					if normal != Vector3.UP and normal != Vector3.DOWN:
+						decal.look_at(point + normal, Vector3.UP)
+					else:
+						decal.look_at(point + normal, Vector3.RIGHT)
+					
+					# Petit offset pour éviter le Z-fighting si le decal est trop plat (bien que Decal gère ça)
+					# Par défaut le Decal projette vers le bas (-Y local), donc look_at aligne -Z.
+					# Decal projection axis is -Y. look_at aligns -Z.
+					# On doit faire pivoter le decal de -90 deg sur X pour que son -Y (projection) s'aligne avec la normale (Z après look_at)
+					decal.rotate_object_local(Vector3.RIGHT, deg_to_rad(-90))
 			
 		print("Hit: " + collider.name)
 	else:
@@ -57,18 +90,6 @@ func _perform_shoot():
 func _create_tracer(start: Vector3, end: Vector3):
 	var tracer = tracer_scene.instantiate()
 	get_tree().root.add_child(tracer)
-	
-	# Utilisation de ImmediateMesh pour dessiner une ligne
-	# IMPORTANT : On crée un nouveau mesh UNIQUE pour éviter que tous les tracers partagent le même (et s'effacent mutuellement)
-	var mesh = ImmediateMesh.new()
-	tracer.mesh = mesh
-	
-	mesh.surface_begin(Mesh.PRIMITIVE_LINES)
-	mesh.surface_add_vertex(start)
-	mesh.surface_add_vertex(end)
-	mesh.surface_end()
-	
-	# Fade out animation
-	var tween = get_tree().create_tween()
-	tween.tween_property(tracer, "transparency", 1.0, 0.1) # Disparait en 0.1s
-	tween.tween_callback(tracer.queue_free)
+	# Le tracer gère sa propre vie via init()
+	if tracer.has_method("init"):
+		tracer.init(start, end)

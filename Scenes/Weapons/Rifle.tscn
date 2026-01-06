@@ -5,23 +5,36 @@
 [ext_resource type="PackedScene" uid="uid://riflevisuals123" path="res://Scenes/Weapons/Visuals/RifleVisuals.tscn" id="3_visuals"]
 [ext_resource type="PackedScene" uid="uid://tracer12345" path="res://Scenes/Effects/BulletTracer.tscn" id="4_tracer"]
 [ext_resource type="AudioStream" uid="uid://riflesound1" path="res://Assets/Sounds/rifle.mp3" id="5_sound"]
+[ext_resource type="PackedScene" uid="uid://bx83ecrr5efmg" path="res://Scenes/Effects/BulletDecal.tscn" id="6_decal"]
+
+[ext_resource type="AudioStream" uid="uid://reloadrifle1" path="res://test/reload_rifle.mp3" id="7_reload"]
 
 [node name="Rifle" type="Node3D" node_paths=PackedStringArray("raycast_node", "muzzle_point")]
 script = ExtResource("1_hhr6j")
 max_distance = 200.0
 raycast_node = NodePath("RayCast3D")
 impact_effect_scene = ExtResource("2_impact")
+decal_scene = ExtResource("6_decal")
 tracer_scene = ExtResource("4_tracer")
 muzzle_point = NodePath("RifleVisuals/GunContainer/MuzzlePoint")
-damage = 1
+damage = 25
 fire_rate = 0.1
 automatic = true
+fire_rate = 0.1
 shoot_sound = ExtResource("5_sound")
+reload_sound = ExtResource("7_reload")
 max_ammo = 30
 current_ammo = 30
+reload_time = 2.5
+recoil_amount = 1.0
+recoil_recovery = 2.0
+max_recoil_deg = 25.0
+recoil_growth_start = 4
+recoil_growth_factor = 0.5
 
 [node name="RayCast3D" type="RayCast3D" parent="."]
 target_position = Vector3(0, 0, -200)
+collision_mask = 7
 enabled = true
 
 [node name="RifleVisuals" parent="." instance=ExtResource("3_visuals")]
