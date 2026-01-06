@@ -1,9 +1,25 @@
-[gd_scene load_steps=3 format=3 uid="uid://bn6wfax82j7jo"]
+[gd_scene load_steps=5 format=3 uid="uid://bn6wfax82j7jo"]
 
 [ext_resource type="Script" uid="uid://6wlkakkdi3yo" path="res://Scripts/Controllers/PlayerController.gd" id="1_gjot8"]
 [ext_resource type="Script" path="res://Scripts/Components/HealthComponent.gd" id="2_health"]
 
 [sub_resource type="CapsuleShape3D" id="CapsuleShape3D_0el0d"]
+
+[sub_resource type="CapsuleMesh" id="CapsuleMesh_player"]
+
+[sub_resource type="SceneReplicationConfig" id="SceneReplicationConfig_rep"]
+properties/0/path = NodePath(".:sync_position")
+properties/0/spawn = true
+properties/0/replication_mode = 1
+properties/1/path = NodePath(".:sync_rotation")
+properties/1/spawn = true
+properties/1/replication_mode = 1
+properties/2/path = NodePath(".:sync_cam_rotation")
+properties/2/spawn = true
+properties/2/replication_mode = 1
+properties/3/path = NodePath(".:sync_stance")
+properties/3/spawn = true
+properties/3/replication_mode = 1
 
 [node name="Player" type="CharacterBody3D"]
 collision_layer = 2
@@ -13,6 +29,9 @@ script = ExtResource("1_gjot8")
 [node name="CollisionShape3D" type="CollisionShape3D" parent="."]
 shape = SubResource("CapsuleShape3D_0el0d")
 
+[node name="BodyMesh" type="MeshInstance3D" parent="CollisionShape3D"]
+mesh = SubResource("CapsuleMesh_player")
+
 [node name="Camera3D" type="Camera3D" parent="CollisionShape3D"]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1.6, 0)
 
@@ -20,3 +39,6 @@ transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1.6, 0)
 
 [node name="HealthComponent" type="Node" parent="."]
 script = ExtResource("2_health")
+
+[node name="MultiplayerSynchronizer" type="MultiplayerSynchronizer" parent="."]
+replication_config = SubResource("SceneReplicationConfig_rep")

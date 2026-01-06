@@ -43,36 +43,57 @@ func shoot():
 	
 	if not can_shoot():
 		if current_ammo <= 0:
-			print("Weapon: Empty! Triggering Auto-Reload.")
+			# print("Weapon: Empty! Triggering Auto-Reload.")
 			emit_signal("out_of_ammo")
 			start_reload() # Auto-reload
 		return
 	
 	var current_time = Time.get_ticks_msec() / 1000.0
 	
-	# Gestion du burst
+	# Gestion du burst logic
 	if (current_time - last_fire_time) > (fire_rate * 2.0):
 		burst_count = 0
-		
 	burst_count += 1
-	
 	last_fire_time = current_time
 	current_ammo -= 1
 	emit_signal("ammo_changed", current_ammo, reserve_ammo)
-	emit_signal("fired")
 	
-	if shoot_sound:
-		play_sound(shoot_sound, 0.95, 1.05)
-		
-	_perform_shoot()
+	# Logic (Raycast) -> Returns impact point (or max range point)
+	var hit_point = _perform_shoot()
 	
-	# Auto-Reload immédiat après le dernier tir
+	# Visuals (Local)
+	trigger_visuals(hit_point)
+	
+	# Auto-Reload
 	if current_ammo <= 0:
 		start_reload()
 
-func _perform_shoot():
-	# À surcharger par les classes enfants
-	pass
+func trigger_visuals(hit_point = null):
+	emit_signal("fired")
+	if shoot_sound: play_sound(shoot_sound, 0.95, 1.05)
+	
+	if hit_point and has_method("create_tracer_effect"):
+		call("create_tracer_effect", hit_point)
+
+	# Network Sync Trigger
+	# We are the weapon. Our parent (or owner) is the PlayerController.
+	# If we are the Authority (which we are if we are running logic), we should tell the Player to RPC.
+	# Network Sync Trigger
+	var owner_node = get_parent()
+	while owner_node:
+		if owner_node is CharacterBody3D: # Assuming Player is CharacterBody3D
+			break
+		owner_node = owner_node.get_parent()
+
+	if owner_node and owner_node.has_method("rpc_fire_weapon") and owner_node.is_multiplayer_authority():
+		# Send RPC
+		var target = hit_point if hit_point else Vector3.ZERO
+		owner_node.rpc("rpc_fire_weapon", target.x, target.y, target.z)
+
+
+func _perform_shoot() -> Vector3:
+	# Virtual, returns hit point
+	return Vector3.ZERO
 
 func get_current_recoil_amount() -> float:
 	# Deprecated, kept for safety but redirected

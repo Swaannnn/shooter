@@ -14,25 +14,37 @@ func _ready():
 	await get_tree().process_frame
 	
 	if raycast_node:
-		# On cherche le joueur pour l'ignorer
-		var players = get_tree().get_nodes_in_group("player")
-		for p in players:
-			raycast_node.add_exception(p)
+		# On cherche le propriétaire pour l'ignorer (et pas tous les joueurs !)
+		# Hypothèse: Arme attachée à Camera -> CollisionShape -> Player (CharacterBody3D)
+		# Ou: Camera -> Player
+		var owner_node = _find_owner(self)
+		if owner_node:
+			raycast_node.add_exception(owner_node)
+			# print("Weapon ignored owner: ", owner_node.name)
+			
+	if not muzzle_point:
+		# Try to find it by name if export failed
+		muzzle_point = find_child("MuzzlePoint", true, false)
+		if muzzle_point:
+			print("Weapon ", name, ": MuzzlePoint found dynamically.")
+		else:
+			print("Weapon ", name, ": No MuzzlePoint found!")
 
-func _perform_shoot():
+func _find_owner(node):
+	var p = node.get_parent()
+	while p:
+		if p is CharacterBody3D: return p
+		p = p.get_parent()
+	return null
+
+func _perform_shoot() -> Vector3:
 	if not raycast_node:
 		push_warning("RayCast node not assigned in HitscanWeapon")
-		return
-
-	# On force la mise à jour du RayCast pour avoir la position exacte
+		return Vector3.ZERO
+	
+	# On force la update
 	raycast_node.force_raycast_update()
 	
-	var start_pos = Vector3.ZERO
-	if muzzle_point:
-		start_pos = muzzle_point.global_position
-	elif raycast_node:
-		start_pos = raycast_node.global_position
-		
 	var end_pos = Vector3.ZERO
 	
 	if raycast_node.is_colliding():
@@ -41,51 +53,87 @@ func _perform_shoot():
 		var normal = raycast_node.get_collision_normal()
 		end_pos = point
 		
-		# Impact Effect
-		if impact_effect_scene:
-			var effect = impact_effect_scene.instantiate()
-			get_tree().root.add_child(effect)
-			effect.global_position = point
-			if normal.is_normalized() and normal != Vector3.UP:
-				effect.look_at(point + normal, Vector3.UP)
-			elif normal == Vector3.UP:
-				effect.look_at(point + normal, Vector3.RIGHT)
+		# Impact Effect (Immediately for shooter? Yes)
+		_create_impact_at(point, normal, collider)
 				
-		# Dégâts via HealthComponent (Standard)
-		if collider:
-			# D'abord on cherche un HealthComponent
+		# Dégâts via HealthComponent (Authority only)
+		if collider and is_multiplayer_authority():
 			var health_comp = collider.get_node_or_null("HealthComponent")
 			if health_comp:
-				health_comp.take_damage(damage)
+				health_comp.take_damage.rpc(damage)
 			elif collider.has_method("take_damage"):
 				collider.take_damage(damage)
-			else:
-				# C'est un mur/objet sans vie -> On met un Decal (trou de balle)
-				if decal_scene:
-					var decal = decal_scene.instantiate()
-					collider.add_child(decal)
-					decal.global_position = point
 					
-					# Orientation du decal selon la normale
-					if normal != Vector3.UP and normal != Vector3.DOWN:
-						decal.look_at(point + normal, Vector3.UP)
-					else:
-						decal.look_at(point + normal, Vector3.RIGHT)
-					
-					# Petit offset pour éviter le Z-fighting si le decal est trop plat (bien que Decal gère ça)
-					# Par défaut le Decal projette vers le bas (-Y local), donc look_at aligne -Z.
-					# Decal projection axis is -Y. look_at aligns -Z.
-					# On doit faire pivoter le decal de -90 deg sur X pour que son -Y (projection) s'aligne avec la normale (Z après look_at)
-					decal.rotate_object_local(Vector3.RIGHT, deg_to_rad(-90))
-			
-		print("Hit: " + collider.name)
+		# print("Hit: " + collider.name)
 	else:
-		# Si on ne touche rien, le tracé va jusqu'à la portée max
+		# Max range
 		end_pos = raycast_node.global_position + (-raycast_node.global_transform.basis.z * max_distance)
+	
+	return end_pos
 
-	# Création du Tracer
+func create_tracer_effect(target_point: Vector3):
+	var start_pos = Vector3.ZERO
+	if muzzle_point:
+		start_pos = muzzle_point.global_position
+	elif raycast_node:
+		start_pos = raycast_node.global_position
+		
 	if tracer_scene:
-		_create_tracer(start_pos, end_pos)
+		# print("Creating tracer from ", start_pos, " to ", target_point)
+		_create_tracer(start_pos, target_point)
+	if tracer_scene:
+		# print("Creating tracer from ", start_pos, " to ", target_point)
+		_create_tracer(start_pos, target_point)
+		
+	# Pour les joueurs distants (RPC), on doit recalculer le contexte du hit (Normale, Collider)
+	# pour pouvoir placer les Decals (trous de balle) et orienter l'impact.
+	if not is_multiplayer_authority():
+		# Raycast Physique pour retrouver la surface
+		var space_state = get_world_3d().direct_space_state
+		# On tire du début vers le point d'impact (un peu plus loin pour être sûr de toucher)
+		var dir = (target_point - start_pos).normalized()
+		var query = PhysicsRayQueryParameters3D.create(start_pos, target_point + (dir * 0.5))
+		
+		# Ignorer le tireur (comme le RayCast3D principal)
+		var owner_node = _find_owner(self)
+		if owner_node:
+			query.exclude = [owner_node.get_rid()]
+			
+		var result = space_state.intersect_ray(query)
+		
+		if result:
+			# On a trouvé la surface !
+			_create_impact_at(result.position, result.normal, result.collider)
+		else:
+			# Fallback si le raycast échoue (glitch geom ou lag), on met juste l'effet
+			if impact_effect_scene:
+				var effect = impact_effect_scene.instantiate()
+				get_tree().root.add_child(effect)
+				effect.global_position = target_point
+				effect.look_at(target_point + Vector3.UP, Vector3.RIGHT) # Orientation par défaut
+
+func _create_impact_at(point, normal, collider):
+	# Impact Effect
+	if impact_effect_scene:
+		var effect = impact_effect_scene.instantiate()
+		get_tree().root.add_child(effect)
+		effect.global_position = point
+		if normal.is_normalized() and normal != Vector3.UP:
+			effect.look_at(point + normal, Vector3.UP)
+		elif normal == Vector3.UP:
+			effect.look_at(point + normal, Vector3.RIGHT)
+	
+	# Decals (Optional, logic simplified here)
+	if collider and not collider.get_node_or_null("HealthComponent"): # Only on walls
+		if decal_scene:
+			var decal = decal_scene.instantiate()
+			collider.add_child(decal)
+			decal.global_position = point
+			if normal != Vector3.UP and normal != Vector3.DOWN:
+				decal.look_at(point + normal, Vector3.UP)
+			else:
+				decal.look_at(point + normal, Vector3.RIGHT)
+			decal.rotate_object_local(Vector3.RIGHT, deg_to_rad(-90))
 
 func _create_tracer(start: Vector3, end: Vector3):
 	var tracer = tracer_scene.instantiate()

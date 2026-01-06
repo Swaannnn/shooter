@@ -11,8 +11,13 @@ config_version=5
 [application]
 
 config/name="Shooter"
+run/main_scene="res://Scenes/UI/MultiplayerMenu.tscn"
 config/features=PackedStringArray("4.5", "Forward Plus")
 config/icon="res://icon.svg"
+
+[autoload]
+
+NetworkManager="*res://Scripts/Network/NetworkManager.gd"
 
 [display]
 
