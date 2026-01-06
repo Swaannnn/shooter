@@ -13,10 +13,32 @@ signal game_started
 var players = {}
 
 func _ready():
+	_load_env()
+	
 	multiplayer.peer_connected.connect(_on_peer_connected)
 	multiplayer.peer_disconnected.connect(_on_peer_disconnected)
 	multiplayer.connected_to_server.connect(_on_connected_to_server)
 	multiplayer.connection_failed.connect(_on_connection_failed)
+
+func _load_env():
+	var env_path = "res://.env"
+	if FileAccess.file_exists(env_path):
+		var file = FileAccess.open(env_path, FileAccess.READ)
+		while file.get_position() < file.get_length():
+			var line = file.get_line().strip_edges()
+			if line.begins_with("#") or line == "":
+				continue
+				
+			var parts = line.split("=", true, 1)
+			if parts.size() == 2:
+				var key = parts[0].strip_edges()
+				var value = parts[1].strip_edges()
+				
+				if key == "LOBBY_URL":
+					lobby_url = value
+					print("Loaded LOBBY_URL from .env: ", lobby_url)
+	else:
+		print("No .env file found. Using default LOBBY_URL: ", lobby_url)
 
 @rpc("call_local", "authority")
 func start_game():
@@ -86,8 +108,8 @@ func _exit_tree():
 
 var verified_public_ip = ""
 var network_status = "Initializing..."
-# LOBBY SERVER URL (Python script must happen here!)
-const LOBBY_URL = "http://127.0.0.1:5000"
+# LOBBY SERVER URL (Overridden by .env)
+var lobby_url = "https://shooter.up.railway.app" # Default to PROD for ease
 
 func setup_upnp():
 	network_status = "Starting UPnP Discovery..."
@@ -124,14 +146,14 @@ func _register_lobby_server():
 	# Send Port (IP is detected by server)
 	var body = JSON.stringify({"port": current_port})
 	var headers = ["Content-Type: application/json"]
-	var error = http.request(LOBBY_URL + "/host", headers, HTTPClient.METHOD_POST, body)
+	var error = http.request(lobby_url + "/host", headers, HTTPClient.METHOD_POST, body)
 	
 	if error != OK:
 		print("Lobby Server Request Failed: ", error)
 		network_status += " | Lobby Server Unreachable"
 		emit_signal("join_code_ready", "")
 
-func _on_lobby_registered(result, response_code, headers, body):
+func _on_lobby_registered(_result, response_code, _headers, body):
 	if response_code == 200:
 		var json = JSON.parse_string(body.get_string_from_utf8())
 		if json and json.has("code"):
@@ -165,9 +187,9 @@ func join_with_code(code: String):
 	var http = HTTPRequest.new()
 	add_child(http)
 	http.request_completed.connect(self._on_code_resolved)
-	http.request(LOBBY_URL + "/join/" + code)
+	http.request(lobby_url + "/join/" + code)
 
-func _on_code_resolved(result, response_code, headers, body):
+func _on_code_resolved(_result, response_code, _headers, body):
 	if response_code == 200:
 		var json = JSON.parse_string(body.get_string_from_utf8())
 		if json and json.has("ip"):

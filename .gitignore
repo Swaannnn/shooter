@@ -25,3 +25,6 @@ test/
 
 # Build files
 Build/
+
+# Environment files
+.env

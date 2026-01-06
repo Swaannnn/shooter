@@ -23,28 +23,27 @@ def cleanup_lobbies():
 @app.route('/host', methods=['POST'])
 def host_game():
     cleanup_lobbies()
-    
+
     data = request.json
     if not data or 'port' not in data:
         return jsonify({"error": "Missing port"}), 400
-        
-    # Generate unique code
+
     code = generate_code()
     while code in lobbies:
         code = generate_code()
-        
-    # Use the requester's IP (automatic detection)
-    ip = request.remote_addr
-    port = data['port']
-    
+
+    ip = request.headers.get("X-Forwarded-For", request.remote_addr)
+    ip = ip.split(",")[0].strip()
+
     lobbies[code] = {
         "ip": ip,
-        "port": port,
+        "port": data['port'],
         "last_seen": time.time()
     }
-    
-    print(f"New Lobby: {code} -> {ip}:{port}")
-    return jsonify({"code": code, "ip": ip})
+
+    print(f"New Lobby: {code} -> {ip}:{data['port']}")
+    return jsonify({"code": code})
+
 
 @app.route('/join/<code>', methods=['GET'])
 def join_game(code):
