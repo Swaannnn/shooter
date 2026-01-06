@@ -1,0 +1,21 @@
+[gd_scene load_steps=5 format=3 uid="uid://owi6obf8w0ch"]
+
+[ext_resource type="Script" uid="uid://ddeuyk024cjhm" path="res://Scripts/Weapons/HitscanWeapon.gd" id="1_hhr6j"]
+[ext_resource type="PackedScene" uid="uid://b6j2x4k5l6m7n" path="res://Scenes/Effects/ImpactEffect.tscn" id="2_impact"]
+[ext_resource type="PackedScene" uid="uid://c6j2x4k5l6m7n" path="res://Scenes/Weapons/Visuals/PistolVisuals.tscn" id="3_visuals"]
+[ext_resource type="PackedScene" uid="uid://tracer12345" path="res://Scenes/Effects/BulletTracer.tscn" id="4_tracer"]
+[ext_resource type="AudioStream" uid="uid://pistolsound1" path="res://Assets/Sounds/pistol.mp3" id="5_sound"]
+
+[node name="Pistol" type="Node3D" node_paths=PackedStringArray("raycast_node", "muzzle_point")]
+script = ExtResource("1_hhr6j")
+raycast_node = NodePath("RayCast3D")
+impact_effect_scene = ExtResource("2_impact")
+tracer_scene = ExtResource("4_tracer")
+muzzle_point = NodePath("PistolVisuals/GunContainer/MuzzlePoint")
+shoot_sound = ExtResource("5_sound")
+
+[node name="RayCast3D" type="RayCast3D" parent="."]
+target_position = Vector3(0, 0, -100)
+enabled = true
+
+[node name="PistolVisuals" parent="." instance=ExtResource("3_visuals")]

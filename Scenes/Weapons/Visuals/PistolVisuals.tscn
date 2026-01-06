@@ -1,0 +1,26 @@
+[gd_scene load_steps=5 format=3 uid="uid://c6j2x4k5l6m7n"]
+
+[ext_resource type="Script" path="res://Scripts/Effects/WeaponSway.gd" id="1_sway"]
+[ext_resource type="PackedScene" uid="uid://bg5s8x2y1x3z" path="res://Assets/Models/Weapons/Models/FBX/Weapons/1911.fbx" id="2_gun"]
+[ext_resource type="ArrayMesh" uid="uid://d3y4x5z6a7b8" path="res://Assets/Models/Arm/arm_V3_L1.123cca2f1b2f-a573-4e9d-9bc8-a96424b196fb/11535_arm_V3_.obj" id="3_arm"]
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_fix"]
+cull_mode = 2 
+albedo_color = Color(0.8, 0.7, 0.6, 1)
+
+[node name="PistolVisuals" type="Node3D"]
+script = ExtResource("1_sway")
+
+[node name="RightArm" type="MeshInstance3D" parent="."]
+transform = Transform3D(-0.00835778, 0.00304198, 0.00457098, -0.0034202, -0.00939693, 0, 0.00429531, -0.00156337, 0.00889416, 0.3, -0.2, -0.145)
+mesh = ExtResource("3_arm")
+surface_material_override/0 = SubResource("StandardMaterial3D_fix")
+
+[node name="GunContainer" type="Node3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.21, -0.1, -0.455)
+
+[node name="1911" parent="GunContainer" instance=ExtResource("2_gun")]
+transform = Transform3D(0.02, 0, 0, 0, 0.02, 0, 0, 0, 0.02, 0, 0, 0)
+
+[node name="MuzzlePoint" type="Marker3D" parent="GunContainer"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.06, -0.3)

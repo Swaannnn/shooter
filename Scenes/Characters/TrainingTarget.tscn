@@ -1,0 +1,29 @@
+[gd_scene load_steps=5 format=3 uid="uid://d47d2nv1yrgv"]
+
+[ext_resource type="Script" path="res://Scripts/Components/TrainingTarget.gd" id="1_target"]
+[ext_resource type="Script" path="res://Scripts/Components/HealthComponent.gd" id="2_health"]
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_red"]
+albedo_color = Color(0.9, 0.1, 0.1, 1)
+
+[sub_resource type="BoxShape3D" id="BoxShape3D_target"]
+size = Vector3(1, 1, 1)
+
+[sub_resource type="BoxMesh" id="1_box"]
+size = Vector3(1, 1, 1)
+
+[node name="TrainingTarget" type="StaticBody3D"]
+script = ExtResource("1_target")
+
+[node name="MeshInstance3D" type="MeshInstance3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.5, 0)
+material_override = SubResource("StandardMaterial3D_red")
+mesh = SubResource("1_box")
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.5, 0)
+shape = SubResource("BoxShape3D_target")
+
+[node name="HealthComponent" type="Node" parent="."]
+script = ExtResource("2_health")
+max_health = 3

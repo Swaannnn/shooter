@@ -1,0 +1,27 @@
+[gd_scene load_steps=5 format=3 uid="uid://b1r31d0f8jm44"]
+
+[ext_resource type="Script" uid="uid://ddeuyk024cjhm" path="res://Scripts/Weapons/HitscanWeapon.gd" id="1_hhr6j"]
+[ext_resource type="PackedScene" uid="uid://b6j2x4k5l6m7n" path="res://Scenes/Effects/ImpactEffect.tscn" id="2_impact"]
+[ext_resource type="PackedScene" uid="uid://riflevisuals123" path="res://Scenes/Weapons/Visuals/RifleVisuals.tscn" id="3_visuals"]
+[ext_resource type="PackedScene" uid="uid://tracer12345" path="res://Scenes/Effects/BulletTracer.tscn" id="4_tracer"]
+[ext_resource type="AudioStream" uid="uid://riflesound1" path="res://Assets/Sounds/rifle.mp3" id="5_sound"]
+
+[node name="Rifle" type="Node3D" node_paths=PackedStringArray("raycast_node", "muzzle_point")]
+script = ExtResource("1_hhr6j")
+max_distance = 200.0
+raycast_node = NodePath("RayCast3D")
+impact_effect_scene = ExtResource("2_impact")
+tracer_scene = ExtResource("4_tracer")
+muzzle_point = NodePath("RifleVisuals/GunContainer/MuzzlePoint")
+damage = 1
+fire_rate = 0.1
+automatic = true
+shoot_sound = ExtResource("5_sound")
+max_ammo = 30
+current_ammo = 30
+
+[node name="RayCast3D" type="RayCast3D" parent="."]
+target_position = Vector3(0, 0, -200)
+enabled = true
+
+[node name="RifleVisuals" parent="." instance=ExtResource("3_visuals")]

@@ -1,0 +1,35 @@
+[gd_scene load_steps=3 format=3 uid="uid://cnx43j541d3kt"]
+
+[ext_resource type="PackedScene" path="res://Scenes/Weapons/Visuals/ShotgunVisuals.tscn" id="1_8cilj"]
+
+[sub_resource type="Environment" id="Environment_wk"]
+background_mode = 1
+background_color = Color(0.2, 0.2, 0.2, 1)
+ambient_light_source = 2
+ambient_light_color = Color(0.5, 0.5, 0.5, 1)
+
+[node name="WeaponWorkbench" type="Node3D"]
+
+[node name="Camera3D" type="Camera3D" parent="."]
+current = true
+
+[node name="ReferenceLight" type="DirectionalLight3D" parent="."]
+transform = Transform3D(0.5, -0.724444, 0.471405, 0, 0.544639, 0.838671, -0.866025, -0.419335, 0.272319, 0, 0, 0)
+shadow_enabled = true
+
+[node name="WorldEnvironment" type="WorldEnvironment" parent="."]
+environment = SubResource("Environment_wk")
+
+[node name="INSTRUCTIONS" type="Label3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.5, 0.5, -1)
+text = "1. Selectionnez 'PistolVisuals'
+2. Activez 'Editable Children' (Clic Droit)
+3. Bougez les nodes et regardez ici!"
+font_size = 20
+
+[node name="ShotgunVisuals" parent="." instance=ExtResource("1_8cilj")]
+
+[node name="Shotgun" parent="ShotgunVisuals/GunContainer" index="0"]
+transform = Transform3D(0.04, 0, 0, 0, 0.04, 0, 0, 0, 0.04, -0.015, -0.01, 0.1)
+
+[editable path="ShotgunVisuals"]
