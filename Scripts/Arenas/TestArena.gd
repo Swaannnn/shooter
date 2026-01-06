@@ -18,15 +18,22 @@ func _ready():
 		multiplayer.peer_connected.connect(_on_peer_connected)
 		multiplayer.peer_disconnected.connect(_on_peer_disconnected)
 		
-		# Spawn self (Host)
-		_on_peer_connected(1)
+		# 1. Spawn Host (Self)
+		_spawn_player(1) # Call spawn function directly or use spawner?
+		# Note: spawner.spawn(id) triggers replication.
+		# But 'spawn(id)' requires the arg to be passed.
+		# Let's use the spawner properly.
+		print("Arena: Server Spawning Host (1)")
+		multiplayer_spawner.spawn(1)
 		
-		# If clients were already connected (unlikely in this flow but good practice)
+		# 2. Spawn Existing Clients (who connected in Lobby)
 		for id in multiplayer.get_peers():
-			_on_peer_connected(id)
+			print("Arena: Server Spawning Client ", id)
+			multiplayer_spawner.spawn(id)
 
 func _on_peer_connected(id: int):
-	print("Arena: Spawning player for peer ", id)
+	# Handle late joiners (if allowed)
+	print("Arena: Late joiner connected ", id)
 	multiplayer_spawner.spawn(id)
 
 func _on_peer_disconnected(id: int):
