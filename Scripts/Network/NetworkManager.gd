@@ -220,3 +220,19 @@ func join_game(address: String, port: int = DEFAULT_PORT):
 	
 	multiplayer.multiplayer_peer = peer
 	print("Connecting to " + address + ":" + str(port) + "...")
+
+func disconnect_game():
+	print("Disconnecting game...")
+	if peer:
+		peer.close()
+		peer = null
+		
+	multiplayer.multiplayer_peer = null
+	players.clear()
+	
+	# Scene change back to Menu
+	# Using call_deferred to avoid issues if called during physics frame
+	get_tree().change_scene_to_file.call_deferred("res://Scenes/UI/MultiplayerMenu.tscn")
+	
+	# UI Signal
+	player_list_updated.emit()
