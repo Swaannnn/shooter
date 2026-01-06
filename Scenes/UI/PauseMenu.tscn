@@ -71,7 +71,7 @@ text = "Paramètres"
 [node name="QuitButton" type="Button" parent="MainContainer/VBoxContainer"]
 layout_mode = 2
 theme_override_font_sizes/font_size = 32
-text = "Quitter le jeu"
+text = "Quitter la partie"
 
 [node name="SettingsContainer" type="Control" parent="."]
 visible = false

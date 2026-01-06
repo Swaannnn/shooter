@@ -234,7 +234,6 @@ func _ready():
 	pause_instance.visible = false
 	pause_instance.setup(self) # On passe self pour que le menu puisse modifier la sensibilité
 	pause_instance.resume_requested.connect(_toggle_pause)
-	pause_instance.quit_requested.connect(_on_quit_game)
 	
 	# Recherche de l'arme et connexion
 	# Au lieu de 'find', on équipe l'arme par défaut pour tout le monde au spawn
@@ -268,12 +267,13 @@ func _on_died():
 	# On garde la caméra active, mais on change la logique de mouvement dans physics_process
 
 func _on_quit_game():
-	get_tree().quit()
+	# Retour Lobby propre via NetworkManager
+	NetworkManager.disconnect_game()
 
 func _toggle_pause():
 	is_paused = !is_paused
 	pause_instance.visible = is_paused
-	get_tree().paused = is_paused # Met le jeu en pause (arrête _process et _physics_process sur les noeuds par défaut)
+	# get_tree().paused = is_paused # REMOVED: User wants game to continue
 	
 	if is_paused:
 		Input.set_mouse_mode(Input.MOUSE_MODE_VISIBLE)
@@ -444,7 +444,7 @@ func _unhandled_input(event):
 	if event is InputEventKey and event.pressed and event.keycode == KEY_B:
 		_toggle_shop()
 		
-	if is_shop_open: return # Pas de mouvement de caméra si boutique ouverte
+	if is_shop_open or is_paused: return # Pas de mouvement de caméra si boutique/pause ouverte
 	
 	if not camera: return # Sécurité pour éviter le crash
 	
@@ -540,7 +540,7 @@ func _physics_process(delta):
 		camera.rotation.y = deg_to_rad(current_recoil_y)
 
 	# Gestion du tir
-	if current_weapon and not is_shop_open and not is_dead: # Added not is_dead
+	if current_weapon and not is_shop_open and not is_dead and not is_paused: # Added not is_paused
 		if current_weapon.automatic:
 			if Input.is_action_pressed("fire"):
 				current_weapon.shoot()

@@ -1,10 +1,10 @@
-[gd_scene load_steps=11 format=3 uid="uid://c8q4f7j6k2l1"]
+[gd_scene load_steps=9 format=3 uid="uid://c8q4f7j6k2l1"]
 
-[ext_resource type="Script" path="res://Scripts/Arenas/TestArena.gd" id="1_script"]
-[ext_resource type="Material" uid="uid://mat_floor_concrete" path="res://Assets/Materials/Mat_Floor.tres" id="1_floor"]
-[ext_resource type="Material" uid="uid://mat_wall_panel" path="res://Assets/Materials/Mat_Wall.tres" id="2_wall"]
-[ext_resource type="Material" uid="uid://mat_box_orange" path="res://Assets/Materials/Mat_Box.tres" id="3_box"]
-[ext_resource type="Material" uid="uid://mat_neon_blue" path="res://Assets/Materials/Mat_Neon.tres" id="4_neon"]
+[ext_resource type="Material" path="res://Assets/Materials/Mat_Floor.tres" id="1_floor"]
+[ext_resource type="Script" uid="uid://2js11xjvln4k" path="res://Scripts/Arenas/TestArena.gd" id="1_script"]
+[ext_resource type="Material" path="res://Assets/Materials/Mat_Wall.tres" id="2_wall"]
+[ext_resource type="Material" path="res://Assets/Materials/Mat_Box.tres" id="3_box"]
+[ext_resource type="Material" path="res://Assets/Materials/Mat_Neon.tres" id="4_neon"]
 
 [sub_resource type="ProceduralSkyMaterial" id="ProceduralSkyMaterial_night"]
 sky_top_color = Color(0.1, 0.1, 0.2, 1)
@@ -22,11 +22,9 @@ ambient_light_source = 3
 ambient_light_color = Color(0.3, 0.3, 0.4, 1)
 tonemap_mode = 3
 glow_enabled = true
-glow_intensity = 0.8
 glow_bloom = 0.1
 fog_enabled = true
 fog_light_color = Color(0.2, 0.2, 0.3, 1)
-fog_density = 0.01
 volumetric_fog_enabled = true
 volumetric_fog_density = 0.005
 
@@ -154,8 +152,8 @@ omni_range = 20.0
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 10, 0)
 light_color = Color(1, 0.95, 0.9, 1)
 light_energy = 8.0
-omni_range = 40.0
 shadow_enabled = true
+omni_range = 40.0
 
 [node name="Corner_Light1" type="OmniLight3D" parent="Lights"]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -25, 8, -15)
@@ -184,7 +182,7 @@ omni_range = 20.0
 [node name="Players" type="Node3D" parent="."]
 
 [node name="MultiplayerSpawner" type="MultiplayerSpawner" parent="."]
-_spawnable_scenes = PackedStringArray("res://Scenes/Characters/Player.tscn")
+_spawnable_scenes = PackedStringArray("uid://bn6wfax82j7jo")
 spawn_path = NodePath("../Players")
 
 [node name="SpawnPoints" type="Node3D" parent="."]
