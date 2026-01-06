@@ -4,10 +4,13 @@ class_name ShotgunWeapon
 @export var pellet_count: int = 8 # Nombre de plombs
 @export var spread_angle: float = 5.0 # Angle de dispersion en degrés
 
-func _perform_shoot():
+func _perform_shoot() -> Vector3:
+	var last_hit = Vector3.ZERO
 	# On tire plusieurs rayons
 	for i in range(pellet_count):
-		_fire_ray_with_spread()
+		last_hit = _fire_ray_with_spread()
+	
+	return last_hit
 
 func _fire_ray_with_spread():
 	if not raycast_node: return
@@ -63,7 +66,9 @@ func _fire_ray_with_spread():
 			# D'abord on cherche un HealthComponent
 			var health_comp = collider.get_node_or_null("HealthComponent")
 			if health_comp:
-				health_comp.take_damage(damage)
+				# Networked Damage
+				if is_multiplayer_authority():
+					health_comp.take_damage.rpc(damage)
 			elif collider.has_method("take_damage"):
 				collider.take_damage(damage) # Dégâts PAR PLOMB
 			else:
@@ -87,12 +92,91 @@ func _fire_ray_with_spread():
 	else:
 		end_pos = raycast_node.global_position + (-raycast_node.global_transform.basis.z * max_distance)
 		
-	# Tracer
-	if tracer_scene:
-		_create_tracer(start_pos, end_pos)
+	# Tracer handled by trigger_visuals now (or duplicated for local shooter?)
+	# If we remove tracer generation here, local shooter won't see them unless trigger_visuals does it.
+	# But _perform_shoot is called by shoot(), and then trigger_visuals is called.
+	# So _perform_shoot SHOULD NOT create visuals directly if trigger_visuals does it.
+	# HOWEVER, _perform_shoot has the EXACT spread data. trigger_visuals has only "one point" or assumes random.
+	# Solution: 
+	# Local Shooter: _perform_shoot calculates logic. trigger_visuals creates visuals.
+	# BUT passing 8 points is hard.
+	# Let's let _perform_shoot create tracers for the SHOOTER.
+	# And trigger_visuals create tracers for the REMOTE.
+	# So if is_multiplayer_authority(), we create tracers here?
+	# Or let trigger_visuals handle everything.
+	
+	# Current approach: _fire_ray_with_spread does logic AND visuals (tracer).
+	# We should disable tracer creation here if it's going to be called by visuals?
+	# No, _perform_shoot is for Logic.
+	
+	# Let's keep tracer creation here for the shooter (precise).
+	if is_multiplayer_authority() or multiplayer.get_unique_id() == get_multiplayer_authority():
+		if tracer_scene:
+			_create_tracer(start_pos, end_pos)
 		
 	# Reset rotation
 	raycast_node.rotation = original_rotation
+	
+	return end_pos
+	
+	# Return last end_pos (just to satisfy return type, though triggers handle visuals internally)
+	return end_pos
+
+# OVERRIDE: Visuals for Shotgun need to spawn multiple tracers
+func trigger_visuals(hit_point = null):
+	emit_signal("fired")
+	if shoot_sound: play_sound(shoot_sound, 0.95, 1.05)
+	
+	# If hit_point is provided (from RPC), it's likely just one point (the main hit or ZERO).
+	# For shotgun, we want to simulate the spread visuals on the Client.
+	# HACK: If we are a remote client (or calling visually), we re-run the "visual only" raycast loop
+	# to generate nicer tracers.
+	
+	var start_pos = Vector3.ZERO
+	if muzzle_point:
+		start_pos = muzzle_point.global_position
+	elif raycast_node:
+		start_pos = raycast_node.global_position
+		
+	# On génère plusieurs tracers visuels
+	for i in range(pellet_count):
+		# Random spread for visual
+		var spread_rad = deg_to_rad(spread_angle)
+		var rand_x = randf_range(-spread_rad, spread_rad)
+		var rand_y = randf_range(-spread_rad, spread_rad)
+		
+		# Fake dispersion direction based on camera forward
+		var forward = -global_transform.basis.z
+		if raycast_node:
+			forward = -raycast_node.global_transform.basis.z
+			
+		# Apply rotation
+		var spread_dir = forward.rotated(Vector3.RIGHT, rand_x).rotated(Vector3.UP, rand_y)
+		var end = start_pos + (spread_dir * max_distance)
+		
+		# Raycast for visual collision (optional, expensive?)
+		# To be cheap, we just draw to max distance or a random distance?
+		# But tracers going through walls looks bad.
+		# Let's assume we don't raycast 8 times for visuals on remote to save CPU.
+		# Just draw to hit_point (if provided) with offset?
+		
+		# Better: Just call the tracer creator with random endpoints around the target direction
+		if tracer_scene:
+			# If we have a main hit point, we bias towards it? No, shotgun is random.
+			_create_tracer(start_pos, end)
+
+	# Network Sync Trigger (Done by parent Weapon.gd via super or manual check?)
+	# Weapon.gd trigger_visuals does the RPC call. Since we override, we must copy that logic.
+	
+	var owner_node = get_parent()
+	while owner_node:
+		if owner_node is CharacterBody3D: break
+		owner_node = owner_node.get_parent()
+
+	if owner_node and owner_node.has_method("rpc_fire_weapon") and owner_node.is_multiplayer_authority():
+		# Send RPC with a "center" point (not perfect but enough to verify firing)
+		var center_hit = hit_point if hit_point else (start_pos + (-global_transform.basis.z * 10.0))
+		owner_node.rpc("rpc_fire_weapon", center_hit.x, center_hit.y, center_hit.z)
 
 # OVERRIDE: Shell-by-Shell Reload
 func start_reload():
@@ -115,15 +199,11 @@ func _reload_shell():
 		
 	emit_signal("reloading_started") # Declenche Anim + Son
 	
-	# Son spécifique shotgun si besoin (déjà géré par reloading_started via Weapon.gd s'il est generic, 
-	# mais ici on veut le jouer à chaque shell. Weapon.gd le joue dans start_reload.
-	# Comme on override start_reload, Weapon.gd ne le joue PAS.
-	# On doit le jouer ici.
+	# Son spécifique shotgun
 	if reload_sound:
 		play_sound(reload_sound, 0.95, 1.05)
 	
-	# Attendre le temps d'insertion (peut être plus court que le reload_time global)
-	# Disons 0.6s par cartouche
+	# Attendre le temps d'insertion
 	await get_tree().create_timer(0.6).timeout
 	
 	if not is_reloading: return # Cancelled pendant le wait
@@ -145,6 +225,30 @@ func shoot():
 			is_reloading = false
 			emit_signal("reloading_finished") # Reset anims
 			
-			super.shoot()
+			# Call parent shoot logic? No, Shotgun shoot logic is custom.
+			# Re-call shoot (which will fall to else)
+			shoot()
 	else:
-		super.shoot()
+		# Logic copied from Weapon.gd but calling _perform_shoot()
+		# We need to ensure we call trigger_visuals()
+		
+		var current_time = Time.get_ticks_msec() / 1000.0
+		if not can_shoot():
+			if current_ammo <= 0:
+				emit_signal("out_of_ammo")
+				start_reload()
+			return
+
+		last_fire_time = current_time
+		current_ammo -= 1
+		emit_signal("ammo_changed", current_ammo, reserve_ammo)
+		
+		# Logic
+		var hit_point = _perform_shoot()
+		
+		# Visuals
+		trigger_visuals(hit_point)
+		
+		if current_ammo <= 0:
+			start_reload()
+

@@ -21,3 +21,7 @@ Thumbs.db
 test/
 *.tmp
 *.bak
+
+
+# Build files
+Build/
