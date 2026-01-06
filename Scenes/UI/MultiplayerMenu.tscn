@@ -1,0 +1,116 @@
+[gd_scene load_steps=2 format=3 uid="uid://menu_multiplayer"]
+
+[ext_resource type="Script" path="res://Scripts/UI/MultiplayerMenu.gd" id="1_script"]
+
+[node name="MultiplayerMenu" type="Control"]
+layout_mode = 3
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+script = ExtResource("1_script")
+
+[node name="Panel" type="Panel" parent="."]
+layout_mode = 1
+anchors_preset = 8
+anchor_left = 0.5
+anchor_top = 0.5
+anchor_right = 0.5
+anchor_bottom = 0.5
+offset_left = -200.0
+offset_top = -150.0
+offset_right = 200.0
+offset_bottom = 150.0
+grow_horizontal = 2
+grow_vertical = 2
+
+[node name="MainMenu" type="VBoxContainer" parent="Panel"]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+offset_left = 20.0
+offset_top = 20.0
+offset_right = -20.0
+offset_bottom = -20.0
+grow_horizontal = 2
+grow_vertical = 2
+alignment = 1
+
+[node name="Label" type="Label" parent="Panel/MainMenu"]
+layout_mode = 2
+text = "GODOT SHOOTER"
+horizontal_alignment = 1
+
+[node name="HSeparator" type="HSeparator" parent="Panel/MainMenu"]
+layout_mode = 2
+theme_override_constants/separation = 20
+
+[node name="HostButton" type="Button" parent="Panel/MainMenu"]
+layout_mode = 2
+text = "HOST GAME"
+
+[node name="HSeparator2" type="HSeparator" parent="Panel/MainMenu"]
+layout_mode = 2
+theme_override_constants/separation = 20
+
+[node name="JoinInput" type="LineEdit" parent="Panel/MainMenu"]
+layout_mode = 2
+placeholder_text = "Enter Code OR IP"
+alignment = 1
+
+[node name="JoinButton" type="Button" parent="Panel/MainMenu"]
+layout_mode = 2
+text = "JOIN GAME"
+
+[node name="StatusLabel" type="Label" parent="Panel/MainMenu"]
+layout_mode = 2
+text = "Status: Idle"
+horizontal_alignment = 1
+
+[node name="LobbyUI" type="VBoxContainer" parent="Panel"]
+visible = false
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+offset_left = 20.0
+offset_top = 20.0
+offset_right = -20.0
+offset_bottom = -20.0
+grow_horizontal = 2
+grow_vertical = 2
+alignment = 1
+
+[node name="Label" type="Label" parent="Panel/LobbyUI"]
+layout_mode = 2
+text = "LOBBY"
+horizontal_alignment = 1
+
+[node name="CodeButton" type="Button" parent="Panel/LobbyUI"]
+layout_mode = 2
+text = "CODE: ???"
+
+[node name="Label2" type="Label" parent="Panel/LobbyUI"]
+layout_mode = 2
+text = "Players Connected:"
+horizontal_alignment = 1
+
+[node name="PlayerList" type="ItemList" parent="Panel/LobbyUI"]
+layout_mode = 2
+size_flags_vertical = 3
+
+[node name="StartButton" type="Button" parent="Panel/LobbyUI"]
+layout_mode = 2
+text = "START GAME"
+
+[node name="LeaveButton" type="Button" parent="Panel/LobbyUI"]
+layout_mode = 2
+text = "LEAVE"
+
+[connection signal="pressed" from="Panel/MainMenu/HostButton" to="." method="_on_host_pressed"]
+[connection signal="pressed" from="Panel/MainMenu/JoinButton" to="." method="_on_join_pressed"]
+[connection signal="pressed" from="Panel/LobbyUI/CodeButton" to="." method="_on_code_copy_pressed"]
+[connection signal="pressed" from="Panel/LobbyUI/StartButton" to="." method="_on_start_game_pressed"]
+[connection signal="pressed" from="Panel/LobbyUI/LeaveButton" to="." method="_on_leave_pressed"]

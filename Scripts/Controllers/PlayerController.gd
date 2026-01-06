@@ -1,14 +1,16 @@
 extends CharacterBody3D
 
 @export var gravity = 9.8
+@export var default_weapon_scene: PackedScene # Weapon to equip on spawn
 
 @onready var camera: Camera3D
-var hud_scene = preload("res://Scenes/UI/HUD.tscn")
-var shop_scene = preload("res://Scenes/UI/ShopMenu.tscn")
-var pause_scene = preload("res://Scenes/UI/PauseMenu.tscn")
+var hud_scene = null
+var shop_scene = null
+var pause_scene = null
 
 # Audio Resources
 var sound_jump = preload("res://Assets/Sounds/jump.mp3")
+
 var sound_run = preload("res://Assets/Sounds/run.mp3")
 var sound_walk = preload("res://Assets/Sounds/walk.mp3")
 # Nouveaux sons
@@ -30,7 +32,7 @@ var audio_slide: AudioStreamPlayer = null
 @export var sensitivity = 0.003
 @export var slide_speed_boost = 12.0
 @export var slide_friction = 4.0
-@export var crouch_height_factor = 0.5 # Percentage of height when crouching
+@export var crouch_height_factor = 0.7 # 30% reduction (Factor 0.7)
 
 var hud_instance = null
 var shop_instance = null
@@ -57,9 +59,100 @@ var is_dead: bool = false # Added new variable
 
 var collision_shape: CollisionShape3D = null
 var original_capsule_height = 2.0
+var previous_position: Vector3 = Vector3.ZERO
+
+# Network Sync Variables (for Interpolation)
+@export var sync_position: Vector3 = Vector3.ZERO
+@export var sync_rotation: Vector3 = Vector3.ZERO
+@export var sync_cam_rotation: float = 0.0
+@export var sync_stance: int = 0 # 0: Stand, 1: Crouch, 2: Slide
 
 func _ready():
+	# 1. SETUP COMMON (Visuals, Audio, Components) ============
+	
+	# Camera Find (Needed for attachment of weapons for everyone)
+	camera = _find_camera_node(self)
+	
+	# 2. Visual ID & Colors
+	var id = str(name).to_int()
+	
+	# Random Color based on ID to differentiate players
+	if has_node("CollisionShape3D/BodyMesh"):
+		var mesh_inst = $CollisionShape3D/BodyMesh
+		var new_mat = StandardMaterial3D.new()
+		var r = (id * 123 % 255) / 255.0
+		var g = (id * 321 % 255) / 255.0
+		var b = (id * 213 % 255) / 255.0
+		new_mat.albedo_color = Color(r, g, b)
+		mesh_inst.material_override = new_mat
+		
+	# Hide own body mesh (Visual comfort for local, but check later)
+	# Actually, we ONLY want to hide it if WE are the local player controlling it.
+	# But is_multiplayer_authority() handles that. 
+	# Wait, if we are Client A viewing Client B (Remote), we WANT to see B's mesh.
+	# So hiding should stay in Authority block? 
+	# YES. Hiding is only for the "eyes" of the player.
+	
+	# Default Weapon (Must be equipped for everyone so visuals exist)
+	if not default_weapon_scene:
+		# Fallback hardcore si la variable export n'est pas remplie
+		default_weapon_scene = load("res://Scenes/Weapons/Pistol.tscn")
+		
+	if default_weapon_scene:
+		_equip_weapon_local(default_weapon_scene)
+		print("Player ", name, " equipped default weapon: ", default_weapon_scene.resource_path)
+	else:
+		push_error("No default weapon scene found for Player " + name)
+
+	# Assume CollisionShape
+	if has_node("CollisionShape3D"):
+		collision_shape = $CollisionShape3D
+		# Make shape unique to avoid shared resource issues between players
+		if collision_shape.shape:
+			collision_shape.shape = collision_shape.shape.duplicate()
+			
+	# Init prev pos
+	previous_position = global_position
+		
+	# 2. AUTHORITY CHECKS (Input, Physics, UI) =================
+	
+	# Network Authority Check
+	if not is_multiplayer_authority():
+		set_physics_process(false)
+		set_process_unhandled_input(false)
+		
+		# Disable Camera for remotes (We don't want to look through their eyes)
+		if camera:
+			camera.current = false
+			
+		# NOTE: We keep _process(true) for interpolation and visuals!
+		return
+	
+	# --- LOCAL AUTHORITY ONLY BELOW ---
+	
+	# Hide own body
+	if has_node("CollisionShape3D/BodyMesh"):
+		$CollisionShape3D/BodyMesh.visible = false
+		
+	# Authority init
+	sync_position = global_position
+	sync_rotation = global_rotation
+	if camera: 
+		sync_cam_rotation = camera.rotation.x
+		camera.current = true # Ensure we look through our eyes
+
 	Input.set_mouse_mode(Input.MOUSE_MODE_CAPTURED)
+	
+	# Load UI scenes locally for the player
+	hud_scene = load("res://Scenes/UI/HUD.tscn")
+	shop_scene = load("res://Scenes/UI/ShopMenu.tscn")
+	pause_scene = load("res://Scenes/UI/PauseMenu.tscn")
+	
+	# Initialisation du HUD
+	if hud_scene:
+		hud_instance = hud_scene.instantiate()
+
+
 	
 	# Setup Audio
 	audio_jump = AudioStreamPlayer.new()
@@ -93,14 +186,37 @@ func _ready():
 	if not camera:
 		push_error("ERREUR CRITIQUE: Aucune Camera3D trouvée dans l'arborescence du Player !")
 	else:
+		# Si on n'est pas l'autorité, on désactive la caméra du joueur distant
+		if not is_multiplayer_authority():
+			camera.current = false
+		else:
+			# Si on EST l'autorité, on force cette caméra comme active
+			camera.current = true
+			
 		print("Camera trouvée : " + camera.name)
 		original_camera_y = camera.position.y
 		mouse_rotation_x = camera.rotation.x
+	
+	# Visual ID Debug & Color Randomization
+	if has_node("NameLabel"):
+		get_node("NameLabel").text = "P" + str(id)
+	
+	if has_node("CollisionShape3D/BodyMesh"):
+		var mesh_inst = get_node("CollisionShape3D/BodyMesh")
+		var new_mat = StandardMaterial3D.new()
+		# Generate color from ID
+		var r = (id * 123 % 255) / 255.0
+		var g = (id * 321 % 255) / 255.0
+		var b = (id * 213 % 255) / 255.0
+		new_mat.albedo_color = Color(r, g, b)
+		mesh_inst.material_override = new_mat
 		
 	add_to_group("player")
 		
 	# Assume CollisionShape is a child named "CollisionShape3D" and has a CapsuleShape3D
 	# We will find it dynamically if needed or assume standard structure
+	if has_node("CollisionShape3D"):
+		collision_shape = $CollisionShape3D
 		
 	# Initialisation du HUD
 	hud_instance = hud_scene.instantiate()
@@ -121,7 +237,10 @@ func _ready():
 	pause_instance.quit_requested.connect(_on_quit_game)
 	
 	# Recherche de l'arme et connexion
-	_find_and_connect_weapon(self)
+	# Au lieu de 'find', on équipe l'arme par défaut pour tout le monde au spawn
+	# Le host le fait, et les clients le font aussi localement.
+	# Idéalement le serveur devrait dire "Equip Pistol", mais ici on force le défaut.
+	_equip_weapon_local("res://Scenes/Weapons/Pistol.tscn")
 	
 	# Connexion HealthComponent
 	var health_comp = get_node_or_null("HealthComponent")
@@ -166,30 +285,62 @@ func _on_weapon_bought(weapon_path):
 	# On ferme la boutique
 	_toggle_shop()
 	
+	# Local Equip + Network Sync
+	_equip_weapon_local(weapon_path)
+	rpc("equip_weapon_remote", weapon_path)
+
+func _equip_weapon_local(weapon_data):
 	# Suppression de l'arme actuelle
 	if current_weapon:
+		# Cleaning up signals is auto when freeing, but good practice
 		current_weapon.queue_free()
 		current_weapon = null
 	
-	# Instanciation de la nouvelle arme
-	var new_weapon_scene = load(weapon_path)
+	print("Equipping weapon data: ", weapon_data)
+	
+	var new_weapon_scene = null
+	if weapon_data is PackedScene:
+		new_weapon_scene = weapon_data
+	elif weapon_data is String:
+		new_weapon_scene = load(weapon_data)
+		
 	if new_weapon_scene:
 		var new_weapon = new_weapon_scene.instantiate()
-		# On attache l'arme à la CAMÉRA pour qu'elle suive la vue
+		
+		# Attachement :
+		# Si c'est nous (Autorité) -> Camera (Vue FPS)
+		# Si c'est un autre (Remote) -> Camera aussi pour l'instant (car le mesh du joueur n'a pas de mains)
+		# Le 'MultiplayerSynchronizer' sync la rotation caméra, donc l'arme suivra le regard des autres.
+		
 		if camera:
 			camera.add_child(new_weapon)
 		else:
 			add_child(new_weapon)
 			
-		# On laisse le temps à la node d'être prête avant de la connecter
-		# Ou on appelle manuellement la connexion
+		# IMPORTANT: The weapon must belong to the same authority as the player logic
+		new_weapon.set_multiplayer_authority(get_multiplayer_authority())
+			
 		current_weapon = new_weapon
-		current_weapon.ammo_changed.connect(_on_ammo_changed)
+		# Connect signals (Safe to connect even if remote, signals just won't trigger logic if not auth)
+		if is_multiplayer_authority():
+			current_weapon.ammo_changed.connect(_on_ammo_changed)
+			# Only authority controls reloading/ammo
+			_on_ammo_changed(current_weapon.current_ammo, current_weapon.reserve_ammo)
+		
 		if not current_weapon.fired.is_connected(_on_weapon_fired):
 			current_weapon.fired.connect(_on_weapon_fired)
-			print("PlayerController (Shop): Signal 'fired' Connected")
 			
-		_on_ammo_changed(current_weapon.current_ammo, current_weapon.reserve_ammo)
+		# Connect Reload Sync
+		if is_multiplayer_authority():
+			if not current_weapon.reloading_started.is_connected(_on_reloading_started):
+				current_weapon.reloading_started.connect(_on_reloading_started)
+
+func _on_reloading_started():
+	rpc("rpc_reload_weapon")
+
+@rpc("call_remote")
+func equip_weapon_remote(weapon_path):
+	_equip_weapon_local(weapon_path)
 		
 func _toggle_shop():
 	is_shop_open = !is_shop_open
@@ -227,10 +378,29 @@ func _on_ammo_changed(amount, reserve = 0):
 		# On passe aussi la réserve (faudrait mettre à jour le HUD pour l'afficher)
 		hud_instance.update_ammo(amount, current_weapon.max_ammo if current_weapon else 0)
 
+@rpc("call_local")
+func rpc_fire_weapon(x, y, z):
+	if is_multiplayer_authority(): return
+	
+	# Debug pour vérifier que le RPC arrive
+	# print("RPC Remote Fire received on ", name, " from ", multiplayer.get_remote_sender_id())
+	
+	if current_weapon:
+		current_weapon.trigger_visuals(Vector3(x, y, z))
+		_on_weapon_fired()
+
+@rpc("call_local")
+func rpc_reload_weapon():
+	if is_multiplayer_authority(): return
+	
+	if current_weapon:
+		# On joue juste le son pour l'instant (ou l'anim si on en avait une)
+		if current_weapon.reload_sound:
+			current_weapon.play_sound(current_weapon.reload_sound)
+
 func _on_weapon_fired():
 	# Ajout du recul
 	if current_weapon:
-		# On récupère le vecteur de recul (X=Pitch, Y=Yaw)
 		var recoil_vec = current_weapon.get_recoil_vector()
 		
 		# PITCH (Vertical)
@@ -239,13 +409,10 @@ func _on_weapon_fired():
 			current_recoil_x = current_weapon.max_recoil_deg
 			
 		# YAW (Horizontal / Spray)
-		# Pas de clamp strict sur le yaw, ça dépend pattern
 		current_recoil_y += recoil_vec.y
-		# On peut clamper le Y si besoin pour pas tourner à 360
 		current_recoil_y = clamp(current_recoil_y, -15.0, 15.0)
 			
 		recoil_recovery_speed = current_weapon.recoil_recovery
-		# print("Recoil applied! Vec: ", recoil_vec)
 
 func _on_health_changed(amount, current):
 	if hud_instance:
@@ -264,6 +431,8 @@ func _find_camera_node(node: Node) -> Camera3D:
 	return null
 
 func _unhandled_input(event):
+	if not is_multiplayer_authority(): return
+
 	if event.is_action_pressed("ui_cancel"):
 		_toggle_pause()
 		
@@ -286,7 +455,41 @@ func _unhandled_input(event):
 		mouse_rotation_x = clamp(mouse_rotation_x, deg_to_rad(-90), deg_to_rad(90))
 		# NOTE: On applique pas tout de suite à la caméra, ce sera fait dans _physics_process
 
+func _process(delta):
+	# Interpolation for remote players
+	if not is_multiplayer_authority():
+		# Smooth Movement
+		global_position = global_position.lerp(sync_position, 20.0 * delta)
+		
+		# Smooth Rotation (Y quaternion slerp would be better but lerp angle is okay for Y)
+		rotation.y = lerp_angle(rotation.y, sync_rotation.y, 20.0 * delta)
+		
+		# Smooth Camera Look (Up/Down)
+		if camera:
+			camera.rotation.x = lerp_angle(camera.rotation.x, sync_cam_rotation, 20.0 * delta)
+	
+	# Visual Update for Stance (Local AND Remote)
+	# This ensures remotes see the stance change via sync_stance
+	# Remotes read sync_stance. Local sets sync_stance in physics.
+	_update_stance_visuals(sync_stance, delta)
+
 func _physics_process(delta):
+	if not is_multiplayer_authority(): return
+	
+	# Determine Stance
+	var current_stance = 0 # Stand
+	if is_sliding:
+		current_stance = 2 # Slide
+	elif is_crouching:
+		current_stance = 1 # Crouch
+		
+	sync_stance = current_stance
+	
+	# Update Sync Vars (Authority)
+	sync_position = global_position
+	sync_rotation = rotation
+	if camera: sync_cam_rotation = camera.rotation.x
+
 	# Add the gravity.
 	if not is_on_floor() and not is_dead:
 		velocity.y -= gravity * delta
@@ -356,6 +559,7 @@ func _physics_process(delta):
 		if not is_crouching:
 			# DÉBUT DU CROUCH
 			is_crouching = true
+			if audio_crouch: audio_crouch.play()
 			
 			# Slide trigger : Si on est au sol et qu'on sprintait/courait vite
 			# On check si on bouge assez vite
@@ -371,13 +575,12 @@ func _physics_process(delta):
 				# Son de slide
 				if audio_slide: audio_slide.play()
 				
-			_update_crouch_visuals(true)
 	else:
 		if is_crouching:
-			# FIN DU CROUCH = On se relève (sauf si obstacle ? Pour l'instant on force)
+			# FIN DU CROUCH
 			is_crouching = false
 			is_sliding = false
-			_update_crouch_visuals(false)
+			if audio_crouch: audio_crouch.play()
 
 	# --- Movement Physics ---
 	var direction = Vector3.ZERO
@@ -390,6 +593,12 @@ func _physics_process(delta):
 	if is_sliding:
 		# LOGIQUE DE GLISSADE
 		# On ignore les inputs de déplacement, on continue sur la lancée avec friction
+		
+		# Problème user: "la glissade se fait dans le sens de la course, pas le sens de la camera"
+		# Current implementation already USES `velocity` (via flat_vel) which is the movement direction.
+		# `slide_vector` was set in the trigger block BEFORE this.
+		# Check the Trigger block (see around line 565)
+		
 		# Appliquer une friction pour ralentir le slide
 		var flat_vel = Vector2(velocity.x, velocity.z)
 		# Ralentissement (Lerp vers 0)
@@ -439,36 +648,88 @@ func _physics_process(delta):
 
 	move_and_slide()
 
-# Fonction helper pour animer la caméra/collider
-func _update_crouch_visuals(crouching: bool):
-	# Son de crouch/stand (bruit de tissu)
-	if audio_crouch: 
-		# On joue le son aussi bien en se baissant qu'en se relevant
-		if not audio_crouch.playing: # Evite le spam si spam touche
-			audio_crouch.pitch_scale = randf_range(0.9, 1.1)
-			audio_crouch.play()
-			
-	var tween = get_tree().create_tween()
+# Fonction helper pour animer les visuels en fonction de la stance
+func _update_stance_visuals(stance: int, delta: float):
+	# stance: 0=Stand, 1=Crouch, 2=Slide
 	
-	# Gestion Camera
+	# 1. Determine Effective Velocity (Visual)
+	var visual_velocity = velocity
+	if not is_multiplayer_authority():
+		# Estimate velocity from position change for remotes
+		if delta > 0:
+			visual_velocity = (global_position - previous_position) / delta
+	
+	# Update prev pos for next frame
+	previous_position = global_position
+	
+	# Gestion Camera Height
 	var target_cam_y = original_camera_y
-	if crouching:
-		target_cam_y = original_camera_y * crouch_height_factor
+	var target_mesh_height = original_capsule_height
+	var target_mesh_y = original_capsule_height / 2.0
+	var target_mesh_rot_x = 0.0
 	
+	if stance == 1: # Crouch
+		target_cam_y = original_camera_y * crouch_height_factor
+	elif stance == 2: # Slide
+		target_cam_y = original_camera_y * crouch_height_factor * 0.8
+		target_mesh_rot_x = deg_to_rad(75.0)
+	
+	# Apply Camera
 	if camera:
-		tween.parallel().tween_property(camera, "position:y", target_cam_y, 0.2)
+		camera.position.y = move_toward(camera.position.y, target_cam_y, 5.0 * delta)
 		
-	# Gestion Hitbox (CollisionShape)
-	if collision_shape and collision_shape.shape is CapsuleShape3D:
-		var target_height = original_capsule_height
-		if crouching:
-			target_height = original_capsule_height * crouch_height_factor
+	# Apply Mesh/Collider visual
+	if collision_shape:
+		# Visuel Mesh
+		var mesh = collision_shape.get_node_or_null("BodyMesh")
+		if mesh:
+			# Height scaling
+			var target_scale_y = 1.0
+			if stance == 1: target_scale_y = crouch_height_factor # 0.7 now
+			if stance == 2: target_scale_y = 1.0 
 			
-		# Tween de la hauteur de la capsule
-		tween.parallel().tween_property(collision_shape.shape, "height", target_height, 0.2)
-		
-		# Ajustement de la position pour garder les pieds au sol
-		# Si l'origine est au centre de la capsule (standard) :
-		# Pos Y = Hauteur / 2
-		var target_shape_y = target_height / 2.0
-		tween.parallel().tween_property(collision_shape, "position:y", target_shape_y, 0.2)
+			mesh.scale.y = move_toward(mesh.scale.y, target_scale_y, 10.0 * delta)
+			
+			# Rotation X (Couché)
+			var current_rot_x = mesh.rotation.x
+			mesh.rotation.x = move_toward(current_rot_x, target_mesh_rot_x, 10.0 * delta)
+			
+			# Rotation Y (Direction)
+			var target_mesh_rot_y = 0.0
+			
+			if stance == 2: # Slide
+				if visual_velocity.length() > 0.1:
+					var velocity_local = global_transform.basis.inverse() * visual_velocity
+					velocity_local.y = 0 
+					if velocity_local.length() > 0.1:
+						target_mesh_rot_y = Vector3.FORWARD.signed_angle_to(velocity_local.normalized(), Vector3.UP)
+			
+			mesh.rotation.y = lerp_angle(mesh.rotation.y, target_mesh_rot_y, 10.0 * delta)
+			
+			# Position offset logic for MESH
+			# On descend le mesh pour qu'il soit au sol
+			var target_pos_y = 0.0
+			if stance == 2: target_pos_y = -0.4 # Moins bas qu'avant (-0.7 était trop)
+			
+			mesh.position.y = move_toward(mesh.position.y, target_pos_y, 10.0 * delta)
+
+		# COLLIDER PHYSIQUE (POUR TOUS) - SMOOTHED
+		if collision_shape.shape is CapsuleShape3D:
+			var shp = collision_shape.shape
+			var target_h = original_capsule_height
+			
+			if stance != 0: 
+				target_h = original_capsule_height * crouch_height_factor
+			
+			# Modif Hauteur Physics (Smooth)
+			# On utilise le meme lerp speed que le visuel pour synchroniser
+			var current_h = shp.height
+			var new_h = move_toward(current_h, target_h, 10.0 * delta)
+			shp.height = new_h
+			
+			# Modif Position Physics (Calculé sur la hauteur COURANTE pour garder pieds au sol)
+			# Center Offset = -(Diff / 2) -> (Orig - Curr) / 2
+			var height_diff = original_capsule_height - new_h
+			var center_offset = -(height_diff / 2.0)
+			
+			collision_shape.position.y = center_offset
