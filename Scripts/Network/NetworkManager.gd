@@ -24,6 +24,8 @@ var arena_scene = preload("res://Scenes/Arenas/TestArena.tscn")
 var arena_spawner: MultiplayerSpawner
 
 func _ready():
+	randomize() # Ensure random room codes
+	
 	print("\n\n---------------------------------")
 	print("--- NETWORK MANAGER INITIALIZING ---")
 	print("CMD ARGS: ", OS.get_cmdline_args())
@@ -76,6 +78,7 @@ func _spawn_arena(room_code: Variant) -> Node:
 	print("⚡ Spawning Arena for Room: ", room_code)
 	var arena = arena_scene.instantiate()
 	arena.name = "Arena_" + str(room_code)
+	arena.room_code = str(room_code) # Assign room code for client-side filtering
 	return arena
 
 func generate_random_code() -> String:

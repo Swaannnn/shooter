@@ -5,6 +5,7 @@ extends Node3D
 @onready var multiplayer_spawner = $MultiplayerSpawner
 
 var player_scene = null
+var room_code = ""
 
 func _ready():
 	# Use load() instead of preload() to avoid circular dependencies (Player -> HUD -> Player etc.)
@@ -30,6 +31,14 @@ func _ready():
 			
 	# Client notifies Server it has loaded the map
 	if not multiplayer.is_server():
+		# LOBBY ISOLATION CHECK
+		if room_code != NetworkManager.current_room:
+			print("🙈 Arena: Ignoring foreign room %s (My Room: %s)" % [room_code, NetworkManager.current_room])
+			# Hide and Disable this arena for this client
+			visible = false
+			process_mode = Node.PROCESS_MODE_DISABLED
+			return
+		
 		print("Arena: Client _ready. Sending notify_level_loaded to Server...")
 		notify_level_loaded.rpc_id(1)
 
