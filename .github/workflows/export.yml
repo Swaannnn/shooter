@@ -98,6 +98,54 @@ jobs:
           name: Linux
           path: Build/Linux
 
+  export-web:
+    name: Web Export
+    runs-on: ubuntu-latest
+    container:
+      image: barichello/godot-ci:4.5.1
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          lfs: true
+
+      - name: Cache Godot Import
+        uses: actions/cache@v3
+        with:
+          path: .godot/imported
+          key: godot-imported-${{ runner.os }}-${{ hashFiles('project.godot') }}
+          restore-keys: |
+            godot-imported-${{ runner.os }}-
+
+      - name: Setup
+        run: |
+          mkdir -v -p ~/.local/share/godot/export_templates
+          mv /root/.local/share/godot/export_templates/${GODOT_VERSION}.stable ~/.local/share/godot/export_templates/${GODOT_VERSION}.stable
+      - name: Remove .blend files (Fix CI Hang)
+        run: find . -name "*.blend" -type f -delete
+
+      - name: Import Assets
+        run: |
+          godot --headless --verbose --editor --quit
+
+      - name: Web Build
+        run: |
+          mkdir -v -p Build/Web
+          godot --headless --verbose --export-release "Web" Build/Web/index.html
+
+      - name: Upload Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: Web
+          path: Build/Web
+
+      - name: Deploy to GitHub Pages 🚀
+        if: github.ref == 'refs/heads/main'
+        uses: peaceiris/actions-gh-pages@v3
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_dir: ./Build/Web
+
 
   release:
     name: Create Release
