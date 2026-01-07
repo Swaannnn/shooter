@@ -109,37 +109,37 @@ func get_recoil_vector() -> Vector2:
 		# --- M4 Spray Pattern Complex ---
 		# X = Vertical, Y = Horizontal (Positive=Left, Negative=Right)
 		
+		# Calcul Commun de la montée (Maintenir la pression verticale)
+		# On clamp le burst effectif pour la montée : ça monte fort puis ça STAGNE haut (ça ne réduit pas l'input)
+		# Burst 8 était la fin de la montée pure. On garde ce niveau d'input.
+		var climb_burst = min(burst_count, 10) 
+		var growth = max(0, climb_burst - recoil_growth_start)
+		vertical += (growth * recoil_growth_factor)
+		
 		# 1. Montée Principale (Juste Verticale)
-		if burst_count < 5:
-			# Balles 1-4 : Tout droit
-			var growth = max(0, burst_count - recoil_growth_start)
-			vertical += (growth * recoil_growth_factor)
+		if burst_count < 8:
 			horizontal = randf_range(-0.1, 0.1) # Micro jitter
 			
 		# 2. Début dérive Droite (Légère)
-		elif burst_count < 12:
-			# Balles 5-11 : Commence à aller un PEU à DROITE
-			# On continue de monter un peu mais moins vite
-			vertical *= 0.85 
+		elif burst_count < 15:
+			# On garde lat montée calculée au dessus (donc forte)
 			vertical += sin(burst_count) * 0.2
 			
-			# Dérive Droite légère
-			# Negative Y = Right
-			# On veut juste "un tout petit peu" -> Max -0.8
-			var progress = float(burst_count - 4) / 8.0 # 0.0 à 1.0
-			horizontal = -0.2 - (progress * 0.6) 
+			# Dérive
+			var progress = float(burst_count - 8) / 7.0 
+			horizontal = -0.5 - (progress * 1.5) # Increased dispersion
 			
 		# 3. Oscillation Stabilisée (Centrée)
 		else:
-			# Balles 12+ : Droite/Gauche régulier (période 4-6 balles)
-			vertical *= 0.3 # Plafond
+			# Balles 15+ : Spray Control
+			# Vertical: On est déjà au input max (via climb_burst=10).
+			# On ajoute du Bruit/Oscillation pour rendre le maintien difficile
+			vertical += sin(burst_count * 1.5) * 0.5 
+			vertical += randf_range(-0.2, 0.5)
 			
-			# Oscillation autour du CENTRE (0.0) ou presque
-			# On veut que ça reste "au dessus du centre de la balle de base"
-			# Pattern sinusoïdal lent
-			# Freq 0.8 -> Période ~8 balles (4 gauche, 4 droite)
-			var wave = sin((burst_count - 10) * 0.8) * 1.5
-			horizontal = wave
+			# Horizontal Wave
+			var wave = sin((burst_count - 10) * 0.8) * 4.0 # Boosted dispersion
+			horizontal = wave + randf_range(-0.5, 0.5)
 			
 	return Vector2(vertical, horizontal)
 
