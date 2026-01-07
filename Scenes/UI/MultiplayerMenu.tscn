@@ -47,6 +47,11 @@ horizontal_alignment = 1
 layout_mode = 2
 theme_override_constants/separation = 20
 
+[node name="OverrideInput" type="LineEdit" parent="Panel/MainMenu"]
+layout_mode = 2
+placeholder_text = "Wait... (Optional: Ngrok/Tunnel URL)"
+alignment = 1
+
 [node name="HostButton" type="Button" parent="Panel/MainMenu"]
 layout_mode = 2
 text = "HOST GAME"
