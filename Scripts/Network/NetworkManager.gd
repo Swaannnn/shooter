@@ -51,13 +51,20 @@ func _load_env():
 # --- SERVER HOSTING ---
 func _start_server():
 	peer = WebSocketMultiplayerPeer.new()
-	var error = peer.create_server(DEFAULT_PORT)
+	
+	# Check for Render's PORT environment variable
+	var port = DEFAULT_PORT
+	if OS.has_environment("PORT"):
+		port = OS.get_environment("PORT").to_int()
+		print("ℹ️ Render Environment Detected. Using Port: ", port)
+	
+	var error = peer.create_server(port)
 	if error != OK:
-		print("❌ Failed to bind port %d: %s" % [DEFAULT_PORT, error])
+		print("❌ Failed to bind port %d: %s" % [port, error])
 		return
 		
 	multiplayer.multiplayer_peer = peer
-	print("✅ Dedicated Server Listening on Port %d" % DEFAULT_PORT)
+	print("✅ Dedicated Server Listening on Port %d" % port)
 
 # --- CLIENT JOINING ---
 func join_game(url: String, room_code: String):
