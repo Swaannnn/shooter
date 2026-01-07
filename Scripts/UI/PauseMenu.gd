@@ -23,7 +23,14 @@ func _ready():
 	# Menu Buttons
 	$MainContainer/VBoxContainer/ResumeButton.pressed.connect(_on_resume_pressed)
 	$MainContainer/VBoxContainer/SettingsButton.pressed.connect(_on_settings_pressed)
-	$MainContainer/VBoxContainer/QuitButton.pressed.connect(_on_quit_pressed)
+	
+	var quit_btn = $MainContainer/VBoxContainer/QuitButton
+	quit_btn.pressed.connect(_on_quit_pressed)
+	
+	if OS.get_name() == "Web":
+		quit_btn.text = "Disconnect"
+	else:
+		quit_btn.text = "Quit to Desktop"
 	
 	# Settings Buttons
 	$SettingsContainer/VBoxContainer/BackButton.pressed.connect(_on_back_pressed)

@@ -36,11 +36,14 @@ func _ready():
 	
 	print("[INIT] Step 2: Creating MultiplayerSpawner...")
 	# Setup MultiplayerSpawner for Dynamic Arenas
+	# Setup MultiplayerSpawner for Dynamic Arenas
 	arena_spawner = MultiplayerSpawner.new()
-	arena_spawner.name = "ArenaSpawner" # CRITICAL: Names must match on Client/Server!
-	arena_spawner.spawn_path = "." # Matches Parent (NetworkManager)? No, wait. 
-	# If we use spawn(), the return value of spawn_function is added as a child of the NODE spawn_path points to.
-	# Default is parent. Let's be explicit and spawn UNDER the NetworkManager.
+	arena_spawner.name = "ArenaSpawner" 
+	
+	# Fix: Explicitly point to Parent (NetworkManager) as the container for arenas.
+	# "." = Spawner itself (Wrong, unless Spawner is a Node3D/Container and we want hierarchy there)
+	# ".." = NetworkManager (Correct, arenas are children of NetworkManager)
+	arena_spawner.spawn_path = NodePath("..")
 	
 	arena_spawner.spawn_function = _spawn_arena # Callback
 	
