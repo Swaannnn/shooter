@@ -39,6 +39,9 @@ WORKDIR /app
 
 COPY . .
 
+# Remove .blend files to prevent hangs on import (Blender not installed)
+RUN find . -name "*.blend" -type f -delete
+
 # Import assets once (to generate .godot folder)
 RUN godot --headless --editor --quit --verbose
 
