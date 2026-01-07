@@ -24,6 +24,13 @@ var arena_scene = preload("res://Scenes/Arenas/TestArena.tscn")
 var arena_spawner: MultiplayerSpawner
 
 func _ready():
+	print("\n\n---------------------------------")
+	print("--- NETWORK MANAGER INITIALIZING ---")
+	print("CMD ARGS: ", OS.get_cmdline_args())
+	print("HAS 'PORT' ENV: ", OS.has_environment("PORT"))
+	print("DISPLAY SERVER: ", DisplayServer.get_name())
+	print("---------------------------------\n\n")
+
 	_load_env() 
 	
 	# Setup MultiplayerSpawner for Dynamic Arenas
