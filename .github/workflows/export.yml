@@ -3,9 +3,14 @@ on:
   push:
     branches:
       - main
+    tags:
+      - "v*"
+  pull_request:
+    branches:
+      - main
 
 env:
-  GODOT_VERSION: 4.3 # Adjusted to match project version approx, assumed 4.x
+  GODOT_VERSION: 4.5.1 # Updated to match project version
   EXPORT_NAME: Shooter
 
 jobs:
@@ -13,20 +18,36 @@ jobs:
     name: Windows Export
     runs-on: ubuntu-latest
     container:
-      image: barichello/godot-ci:4.3
+      image: barichello/godot-ci:4.5.1
     steps:
       - name: Checkout
         uses: actions/checkout@v4
         with:
           lfs: true
+      
+      - name: Cache Godot Import
+        uses: actions/cache@v3
+        with:
+          path: .godot/imported
+          key: godot-imported-${{ runner.os }}-${{ hashFiles('project.godot') }}
+          restore-keys: |
+            godot-imported-${{ runner.os }}-
+
       - name: Setup
         run: |
           mkdir -v -p ~/.local/share/godot/export_templates
           mv /root/.local/share/godot/export_templates/${GODOT_VERSION}.stable ~/.local/share/godot/export_templates/${GODOT_VERSION}.stable
+      - name: Remove .blend files (Fix CI Hang)
+        run: find . -name "*.blend" -type f -delete
+
+      - name: Import Assets
+        run: |
+          godot --headless --verbose --editor --quit
+
       - name: Windows Build
         run: |
           mkdir -v -p Build/Windows
-          godot --headless --verbose --export-release "Windows Desktop" Build/Windows/$EXPORT_NAME.exe
+          godot --headless --verbose --audio-driver Dummy --display-driver headless --export-release "Windows Desktop" Build/Windows/$EXPORT_NAME.exe
       - name: Upload Artifact
         uses: actions/upload-artifact@v4
         with:
@@ -37,20 +58,36 @@ jobs:
     name: Linux Export
     runs-on: ubuntu-latest
     container:
-      image: barichello/godot-ci:4.3
+      image: barichello/godot-ci:4.5.1
     steps:
       - name: Checkout
         uses: actions/checkout@v4
         with:
           lfs: true
+
+      - name: Cache Godot Import
+        uses: actions/cache@v3
+        with:
+          path: .godot/imported
+          key: godot-imported-${{ runner.os }}-${{ hashFiles('project.godot') }}
+          restore-keys: |
+            godot-imported-${{ runner.os }}-
+
       - name: Setup
         run: |
           mkdir -v -p ~/.local/share/godot/export_templates
           mv /root/.local/share/godot/export_templates/${GODOT_VERSION}.stable ~/.local/share/godot/export_templates/${GODOT_VERSION}.stable
+      - name: Remove .blend files (Fix CI Hang)
+        run: find . -name "*.blend" -type f -delete
+
+      - name: Import Assets
+        run: |
+          godot --headless --verbose --editor --quit
+
       - name: Linux Build
         run: |
           mkdir -v -p Build/Linux
-          godot --headless --verbose --export-release "Linux" Build/Linux/$EXPORT_NAME.x86_64
+          godot --headless --verbose --audio-driver Dummy --display-driver headless --export-release "Linux" Build/Linux/$EXPORT_NAME.x86_64
       - name: Upload Artifact
         uses: actions/upload-artifact@v4
         with:
@@ -61,22 +98,79 @@ jobs:
     name: macOS Export
     runs-on: ubuntu-latest
     container:
-      image: barichello/godot-ci:4.3
+      image: barichello/godot-ci:4.5.1
     steps:
       - name: Checkout
         uses: actions/checkout@v4
         with:
           lfs: true
+
+      - name: Cache Godot Import
+        uses: actions/cache@v3
+        with:
+          path: .godot/imported
+          key: godot-imported-${{ runner.os }}-${{ hashFiles('project.godot') }}
+          restore-keys: |
+            godot-imported-${{ runner.os }}-
+
       - name: Setup
         run: |
           mkdir -v -p ~/.local/share/godot/export_templates
           mv /root/.local/share/godot/export_templates/${GODOT_VERSION}.stable ~/.local/share/godot/export_templates/${GODOT_VERSION}.stable
+      - name: Remove .blend files (Fix CI Hang)
+        run: find . -name "*.blend" -type f -delete
+
+      - name: Import Assets
+        run: |
+          godot --headless --verbose --editor --quit
+
       - name: macOS Build
         run: |
           mkdir -v -p Build/macOS
-          godot --headless --verbose --export-release "macOS" Build/macOS/$EXPORT_NAME.zip
+          godot --headless --verbose --audio-driver Dummy --display-driver headless --export-release "macOS" Build/macOS/$EXPORT_NAME.zip
       - name: Upload Artifact
         uses: actions/upload-artifact@v4
         with:
           name: macOS
           path: Build/macOS
+
+  release:
+    name: Create Release
+    runs-on: ubuntu-latest
+    needs: [export-windows, export-linux, export-macos]
+    if: startsWith(github.ref, 'refs/tags/') || github.ref == 'refs/heads/main'
+    steps:
+      - name: Download Windows
+        uses: actions/download-artifact@v4
+        with:
+          name: Windows
+          path: Windows
+      
+      - name: Download Linux
+        uses: actions/download-artifact@v4
+        with:
+          name: Linux
+          path: Linux
+          
+      - name: Download macOS
+        uses: actions/download-artifact@v4
+        with:
+          name: macOS
+          path: macOS
+          
+      - name: Zip Artifacts (Optional Polish)
+        run: |
+          zip -r Windows.zip Windows
+          zip -r Linux.zip Linux
+          zip -r macOS.zip macOS
+
+      - name: Create Release
+        uses: ncipollo/release-action@v1
+        with:
+          artifacts: "Windows.zip,Linux.zip,macOS.zip"
+          token: ${{ secrets.GITHUB_TOKEN }}
+          allowUpdates: true
+          tag: ${{ startsWith(github.ref, 'refs/tags/') && github.ref_name || 'latest' }}
+          name: ${{ startsWith(github.ref, 'refs/tags/') && github.ref_name || 'Development Build (Latest)' }}
+          body: "Automatic build from ${{ github.sha }}"
+          prerelease: ${{ !startsWith(github.ref, 'refs/tags/') }}
