@@ -3,7 +3,7 @@ extends Node
 const DEFAULT_PORT = 7777
 const MAX_CLIENTS = 10
 
-var peer: ENetMultiplayerPeer
+var peer: WebSocketMultiplayerPeer
 var current_port = DEFAULT_PORT
 
 signal join_code_ready(code: String)
@@ -72,13 +72,14 @@ func _on_connection_failed():
 func host_game():
 	# Clean up previous peer if any
 	if peer: peer.close()
-	peer = ENetMultiplayerPeer.new()
+	peer = WebSocketMultiplayerPeer.new()
 	
 	var error = OK
 	# Try ports 7777 to 7782 (allow 5 instances)
 	for p in range(DEFAULT_PORT, DEFAULT_PORT + 5):
 		current_port = p
-		error = peer.create_server(current_port, MAX_CLIENTS)
+		# WebSocket create_server takes port and optional bind address
+		error = peer.create_server(current_port)
 		if error == OK:
 			print("Hosting Success on Port: ", current_port)
 			break
@@ -89,14 +90,11 @@ func host_game():
 		print("Cannot host: " + str(error))
 		return
 		
-	# Compress bandwidth
-	peer.get_host().compress(ENetConnection.COMPRESS_RANGE_CODER)
-	
 	multiplayer.multiplayer_peer = peer
 	print("Waiting for players...")
 	
 	setup_upnp()
-	
+
 var upnp: UPNP = null
 
 func _exit_tree():
@@ -120,10 +118,11 @@ func setup_upnp():
 	if discover_result == UPNP.UPNP_RESULT_SUCCESS:
 		if upnp.get_gateway() and upnp.get_gateway().is_valid_gateway():
 			# Use current_port!
-			var map_result_udp = upnp.add_port_mapping(current_port, current_port, "Godot_Shooter_UDP", "UDP", 0)
+			# For WebSocket (TCP), we map TCP. UDP is not used for WS.
+			var map_result_tcp = upnp.add_port_mapping(current_port, current_port, "Godot_Shooter_WS", "TCP", 0)
 			
-			if map_result_udp != UPNP.UPNP_RESULT_SUCCESS:
-				network_status = "UPnP Mapping Failed: %s" % map_result_udp
+			if map_result_tcp != UPNP.UPNP_RESULT_SUCCESS:
+				network_status = "UPnP Mapping Failed: %s" % map_result_tcp
 				print(network_status)
 			else:
 				network_status = "UPnP Success!"
@@ -208,18 +207,18 @@ func join_game(address: String, port: int = DEFAULT_PORT):
 	
 	# Clean up previous peer
 	if peer: peer.close()
-	peer = ENetMultiplayerPeer.new()
-		
-	var error = peer.create_client(address, port)
+	peer = WebSocketMultiplayerPeer.new()
+	
+	# WebSocket needs ws:// or wss:// schema
+	var url = "ws://" + address + ":" + str(port)
+	print("Connecting to " + url + "...")
+	
+	var error = peer.create_client(url)
 	if error != OK:
 		print("Cannot join: " + str(error))
 		return
 	
-	# Compress bandwidth
-	peer.get_host().compress(ENetConnection.COMPRESS_RANGE_CODER)
-	
 	multiplayer.multiplayer_peer = peer
-	print("Connecting to " + address + ":" + str(port) + "...")
 
 func disconnect_game():
 	print("Disconnecting game...")
