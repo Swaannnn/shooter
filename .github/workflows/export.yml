@@ -40,7 +40,7 @@ jobs:
       - name: Windows Build
         run: |
           mkdir -v -p Build/Windows
-          godot --headless --verbose --export-release "Windows Desktop" Build/Windows/$EXPORT_NAME.exe
+          godot --headless --verbose --audio-driver Dummy --display-driver headless --export-release "Windows Desktop" Build/Windows/$EXPORT_NAME.exe
       - name: Upload Artifact
         uses: actions/upload-artifact@v4
         with:
@@ -73,7 +73,7 @@ jobs:
       - name: Linux Build
         run: |
           mkdir -v -p Build/Linux
-          godot --headless --verbose --export-release "Linux" Build/Linux/$EXPORT_NAME.x86_64
+          godot --headless --verbose --audio-driver Dummy --display-driver headless --export-release "Linux" Build/Linux/$EXPORT_NAME.x86_64
       - name: Upload Artifact
         uses: actions/upload-artifact@v4
         with:
@@ -106,7 +106,7 @@ jobs:
       - name: macOS Build
         run: |
           mkdir -v -p Build/macOS
-          godot --headless --verbose --export-release "macOS" Build/macOS/$EXPORT_NAME.zip
+          godot --headless --verbose --audio-driver Dummy --display-driver headless --export-release "macOS" Build/macOS/$EXPORT_NAME.zip
       - name: Upload Artifact
         uses: actions/upload-artifact@v4
         with:
