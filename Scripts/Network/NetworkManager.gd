@@ -38,7 +38,9 @@ func _ready():
 	# Setup MultiplayerSpawner for Dynamic Arenas
 	arena_spawner = MultiplayerSpawner.new()
 	arena_spawner.name = "ArenaSpawner" # CRITICAL: Names must match on Client/Server!
-	arena_spawner.spawn_path = "." 
+	# arena_spawner.spawn_path defaults to Parent (NetworkManager), which is correct.
+	# Setting it to "." made it look inside itself, but we add_child to NetworkManager.
+	
 	arena_spawner.add_spawnable_scene("res://Scenes/Arenas/TestArena.tscn")
 	arena_spawner.spawned.connect(_on_arena_spawned)
 	add_child(arena_spawner)
