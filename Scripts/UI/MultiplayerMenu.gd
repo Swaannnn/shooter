@@ -5,6 +5,7 @@ extends Control
 @onready var lobby_ui = $Panel/LobbyUI
 
 # Main Menu Widgets
+@onready var name_input = $Panel/MainMenu/NameInput
 @onready var join_input = $Panel/MainMenu/JoinInput
 @onready var status_label = $Panel/MainMenu/StatusLabel
 @onready var host_button = $Panel/MainMenu/HostButton
@@ -68,6 +69,12 @@ func _show_lobby_ui():
 # --- MAIN MENU ACTIONS ---
 
 func _on_host_pressed():
+	# Save Name
+	if name_input and name_input.text.strip_edges() != "":
+		NetworkManager.my_name = name_input.text.strip_edges()
+	else:
+		NetworkManager.my_name = "Player_" + str(randi() % 1000)
+
 	# "Host" now means "Create Private Room" on the Dedicated Server
 	status_label.text = "Status: Creating Room..."
 	host_button.disabled = true
@@ -77,6 +84,12 @@ func _on_host_pressed():
 	NetworkManager.join_game(NetworkManager.server_url, new_room_code)
 
 func _on_join_pressed():
+	# Save Name
+	if name_input and name_input.text.strip_edges() != "":
+		NetworkManager.my_name = name_input.text.strip_edges()
+	else:
+		NetworkManager.my_name = "Player_" + str(randi() % 1000)
+
 	var code = join_input.text.strip_edges().to_upper()
 	if code == "":
 		status_label.text = "Error: Input Room Code"
@@ -136,7 +149,24 @@ func _update_lobby_ui():
 	if not player_list or not lobby_ui.visible: return
 	player_list.clear()
 	
-	var players = NetworkManager.players_on_server
+	# Use the Room-Specific List
+	var players = NetworkManager.players_in_room
+	var my_id = multiplayer.get_unique_id()
+	var am_i_host = false
+	
 	for id in players:
 		var info = players[id]
-		player_list.add_item(info.get("name", "Unknown"))
+		var txt = info.get("name", "Unknown")
+		if info.get("is_host", false):
+			txt += " [HOST]"
+			if id == my_id: am_i_host = true
+			
+		player_list.add_item(txt)
+
+	# Enable Start Button ONLY if Host
+	if start_button:
+		start_button.disabled = not am_i_host
+		if not am_i_host:
+			start_button.tooltip_text = "Waiting for Host to start..."
+		else:
+			start_button.tooltip_text = ""

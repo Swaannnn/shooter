@@ -381,6 +381,11 @@ func _on_ammo_changed(amount, reserve = 0):
 func rpc_fire_weapon(x, y, z):
 	if is_multiplayer_authority(): return
 	
+	# ISOLATION CHECK: Ignore shots from other lobbies
+	var sender_id = multiplayer.get_remote_sender_id()
+	if not NetworkManager.is_player_in_my_room(sender_id):
+		return
+	
 	# Debug pour vérifier que le RPC arrive
 	# print("RPC Remote Fire received on ", name, " from ", multiplayer.get_remote_sender_id())
 	

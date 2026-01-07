@@ -138,6 +138,9 @@ func join_game(url: String, room_code: String):
 		
 	multiplayer.multiplayer_peer = peer
 
+# Client-side cache of players in MY room
+var players_in_room = {}
+
 # --- ROOM MANAGEMENT ---
 
 @rpc("any_peer", "call_local", "reliable")
@@ -145,18 +148,49 @@ func register_player(new_name: String, room_code: String):
 	var sender_id = multiplayer.get_remote_sender_id()
 	print("📩 Player %d registering for Room: %s" % [sender_id, room_code])
 	
-	players_on_server[sender_id] = {"name": new_name, "room": room_code}
+	# Determine Host (First player in this room)
+	var is_host = true
+	for pid in players_on_server:
+		if players_on_server[pid]["room"] == room_code:
+			is_host = false
+			break
 	
-	# Notify clients to refresh their lists
-	player_list_updated.emit()
+	players_on_server[sender_id] = {
+		"name": new_name, 
+		"room": room_code,
+		"is_host": is_host
+	}
 	
 	# Confirm join to the client
 	if multiplayer.is_server():
 		send_join_success.rpc_id(sender_id, room_code)
+		# Update lists for everyone in this room
+		_update_room_players(room_code)
+
+func _update_room_players(room_code: String):
+	# Gather players for this room
+	var room_players = {}
+	for pid in players_on_server:
+		if players_on_server[pid]["room"] == room_code:
+			room_players[pid] = players_on_server[pid]
+	
+	# Send specific list to each member of the room
+	for pid in room_players:
+		update_client_player_list.rpc_id(pid, room_players)
+
+@rpc("authority", "call_local", "reliable")
+func update_client_player_list(room_players: Dictionary):
+	# Client receives ONLY members of their room
+	players_in_room = room_players
+	player_list_updated.emit()
+	
+	# Debug
+	print("Updated Room List: ", players_in_room.keys())
 
 @rpc("authority", "call_local", "reliable")
 func send_join_success(room_code: String):
 	print("✅ Joined Room: ", room_code)
+	current_room = room_code # Server confirms room
 	join_room_success.emit(room_code)
 
 # --- EVENTS ---
@@ -171,12 +205,22 @@ func _on_peer_connected(id):
 
 func _on_peer_disconnected(id):
 	print("Peer Disconnected: ", id)
-	players_on_server.erase(id)
+	
+	# Handle cleanup
+	if players_on_server.has(id):
+		var room = players_on_server[id]["room"]
+		players_on_server.erase(id)
+		
+		# If user was host, promote new host? (Optional, maybe later)
+		# For now just update list
+		_update_room_players(room)
+		
 	player_list_updated.emit()
 
 func _on_connection_failed():
 	print("❌ Connection Failed. Check URL.")
 	players_on_server.clear()
+	players_in_room.clear()
 	player_list_updated.emit()
 
 # --- UTILS ---
@@ -189,15 +233,19 @@ func disconnect_game():
 	# Cleanup local state
 	current_room = ""
 	players_on_server.clear()
+	players_in_room.clear()
 	
-	# Manually clean up any Arena nodes, as the server handles replication
-	# but we've just cut the connection.
+	# Manually clean up any Arena nodes
 	for child in get_children():
 		if child.name.begins_with("Arena_"):
 			print("Display Cleanup: Removing ", child.name)
 			child.queue_free()
 	
 	game_ended.emit()
+
+# Client-side Helper
+func is_player_in_my_room(id: int) -> bool:
+	return players_in_room.has(id) or id == multiplayer.get_unique_id() # Self is always in room
 
 @rpc("any_peer", "call_local", "reliable")
 func request_start_game():
@@ -212,6 +260,11 @@ func request_start_game():
 			print("Error: Player not found")
 			return
 		var room_code = players_on_server[sender_id]["room"]
+		
+		# 1.5 CHECK AUTHORITY (HOST ONLY)
+		if not players_on_server[sender_id].get("is_host", false):
+			print("⚠️ PERMISSION DENIED: Peer %d is not Host of room %s" % [sender_id, room_code])
+			return
 		
 		# 2. Check if game already running for this room
 		var arena_name = "Arena_" + room_code
