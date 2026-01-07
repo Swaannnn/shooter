@@ -15,10 +15,11 @@ extends Control
 @onready var code_button = $Panel/LobbyUI/CodeButton
 @onready var player_list = $Panel/LobbyUI/PlayerList
 @onready var start_button = $Panel/LobbyUI/StartButton
+@onready var leave_button = $Panel/LobbyUI/LeaveButton
 
 func _ready():
 	_show_main_menu()
-	NetworkManager.join_code_ready.connect(_on_join_code_ready)
+	NetworkManager.join_room_success.connect(_on_join_room_success)
 	NetworkManager.player_list_updated.connect(_update_lobby_ui)
 	
 	if quit_game_button:
@@ -28,9 +29,12 @@ func _ready():
 	if start_button: start_button.disabled = true
 	
 	if OS.has_feature("web"):
-		host_button.disabled = true
-		host_button.tooltip_text = "Hosting is not available on Web."
-		status_label.text = "Web Client Mode (Hosting Disabled)"
+		# host_button.disabled = true <- REMOVED: Web can now Create Rooms!
+		# host_button.tooltip_text = "Hosting is not available on Web."
+		# status_label.text = "Web Client Mode (Hosting Disabled)"
+		if leave_button: leave_button.visible = false # Hide Leave Button on Web
+
+
 
 func _show_main_menu():
 	main_menu.visible = true
@@ -38,8 +42,8 @@ func _show_main_menu():
 	status_label.text = "Status: Idle"
 	
 	if OS.has_feature("web"):
-		host_button.disabled = true
-		status_label.text = "Web Client Mode (Host Disabled)"
+		# Web users can now Create Rooms (Virtual Host)
+		pass
 	else:
 		host_button.disabled = false
 		
@@ -84,7 +88,7 @@ func _on_quit_game_pressed():
 
 # --- LOBBY ACTIONS ---
 
-func _on_join_code_ready(code: String):
+func _on_join_room_success(code: String):
 	if code == "":
 		status_label.text = "Error: Lobby Failed"
 		host_button.disabled = false
@@ -112,15 +116,7 @@ func _on_start_game_pressed():
 	NetworkManager.start_game.rpc()
 
 func _on_leave_pressed():
-	# Stop Host/Client
-	if multiplayer.multiplayer_peer:
-		multiplayer.multiplayer_peer.close()
-		multiplayer.multiplayer_peer = null
-		
-	# Update NetworkManager state if needed (clear players)
-	NetworkManager.players.clear()
-	
-	# Reset UI to Main Menu
+	NetworkManager.disconnect_game()
 	_show_main_menu()
 	status_label.text = "Status: Idle"
 
@@ -129,7 +125,7 @@ func _update_lobby_ui():
 	if not player_list or not lobby_ui.visible: return
 	player_list.clear()
 	
-	var players = NetworkManager.players
+	var players = NetworkManager.players_on_server
 	for id in players:
 		var info = players[id]
 		player_list.add_item(info.get("name", "Unknown"))

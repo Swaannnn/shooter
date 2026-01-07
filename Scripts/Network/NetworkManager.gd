@@ -17,7 +17,7 @@ var current_room = ""
 var players_on_server = {} 
 
 # PRODUCTION URL
-var server_url = "wss://shooter-game.onrender.com" 
+var server_url = "wss://shooter-5785.onrender.com" 
 
 func _ready():
 	_load_env() # Try to load .env override
