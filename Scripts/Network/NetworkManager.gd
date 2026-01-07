@@ -31,8 +31,10 @@ func _ready():
 	print("DISPLAY SERVER: ", DisplayServer.get_name())
 	print("---------------------------------\n\n")
 
+	print("[INIT] Step 1: Loading Env...")
 	_load_env() 
 	
+	print("[INIT] Step 2: Creating MultiplayerSpawner...")
 	# Setup MultiplayerSpawner for Dynamic Arenas
 	arena_spawner = MultiplayerSpawner.new()
 	arena_spawner.name = "ArenaSpawner" # CRITICAL: Names must match on Client/Server!
@@ -41,14 +43,13 @@ func _ready():
 	arena_spawner.spawned.connect(_on_arena_spawned)
 	add_child(arena_spawner)
 	
+	print("[INIT] Step 3: Connecting Signals...")
 	multiplayer.peer_connected.connect(_on_peer_connected)
 	multiplayer.peer_disconnected.connect(_on_peer_disconnected)
 	multiplayer.connected_to_server.connect(_on_connected_to_server)
 	multiplayer.connection_failed.connect(_on_connection_failed)
 	
-func _on_arena_spawned(node):
-	print("✅ ArenaSpawner: Successfully spawned node: ", node.name)
-	
+	print("[INIT] Step 4: Checking Auto-Host...")
 	# --- AUTO-HOST LOGIC ---
 	# We verify multiple conditions to ensure it triggers on Render
 	var args = OS.get_cmdline_args()
@@ -57,6 +58,9 @@ func _on_arena_spawned(node):
 		print("🚀 STARTING DEDICATED SERVER MODE (Enforced)...")
 		# Give it a tiny delay to ensure peer is ready? No, should be fine.
 		call_deferred("_start_server")
+
+func _on_arena_spawned(node):
+	print("✅ ArenaSpawner: Successfully spawned node: ", node.name)
 
 func generate_random_code() -> String:
 	var chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
