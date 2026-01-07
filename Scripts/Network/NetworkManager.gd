@@ -7,6 +7,7 @@ var peer: WebSocketMultiplayerPeer
 
 signal player_list_updated
 signal game_started
+signal game_ended # Checkpoint for UI to re-appear
 signal join_room_success(room_code: String)
 
 # Local Player Info
@@ -37,7 +38,6 @@ func _ready():
 	_load_env() 
 	
 	print("[INIT] Step 2: Creating MultiplayerSpawner...")
-	# Setup MultiplayerSpawner for Dynamic Arenas
 	# Setup MultiplayerSpawner for Dynamic Arenas
 	arena_spawner = MultiplayerSpawner.new()
 	arena_spawner.name = "ArenaSpawner" 
@@ -185,8 +185,19 @@ func disconnect_game():
 		peer.close()
 		peer = null
 	multiplayer.multiplayer_peer = null
+	
+	# Cleanup local state
+	current_room = ""
 	players_on_server.clear()
-	game_started.emit() # Reset UI?
+	
+	# Manually clean up any Arena nodes, as the server handles replication
+	# but we've just cut the connection.
+	for child in get_children():
+		if child.name.begins_with("Arena_"):
+			print("Display Cleanup: Removing ", child.name)
+			child.queue_free()
+	
+	game_ended.emit()
 
 @rpc("any_peer", "call_local", "reliable")
 func request_start_game():

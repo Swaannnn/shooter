@@ -21,6 +21,8 @@ func _ready():
 	_show_main_menu()
 	NetworkManager.join_room_success.connect(_on_join_room_success)
 	NetworkManager.player_list_updated.connect(_update_lobby_ui)
+	NetworkManager.game_started.connect(_on_game_started)
+	NetworkManager.game_ended.connect(_show_main_menu)
 	
 	if quit_game_button:
 		quit_game_button.pressed.connect(_on_quit_game_pressed)
@@ -29,15 +31,22 @@ func _ready():
 	if start_button: start_button.disabled = true
 	
 	if OS.has_feature("web"):
-		# host_button.disabled = true <- REMOVED: Web can now Create Rooms!
-		# host_button.tooltip_text = "Hosting is not available on Web."
-		# status_label.text = "Web Client Mode (Hosting Disabled)"
-		if leave_button: leave_button.visible = false # Hide Leave Button on Web
-		if quit_game_button: quit_game_button.visible = false # Hide Quit Button on Web
+		# Hide QUIT button on Web (Quitting browser is handled by browser)
+		# But LEAVE button (return to menu) should be VISIBLE.
+		if quit_game_button: quit_game_button.visible = false 
+		
+		# Allow leaving lobby
+		if leave_button: leave_button.visible = true 
+
+func _on_game_started():
+	print("Menu: Game Started! Hiding UI.")
+	hide() # Hide the entire MultiplayerMenu Control
+
 
 
 
 func _show_main_menu():
+	show() # CRITICAL: Make sure the root Control is visible again!
 	main_menu.visible = true
 	lobby_ui.visible = false
 	status_label.text = "Status: Idle"

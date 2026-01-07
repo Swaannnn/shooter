@@ -27,10 +27,8 @@ func _ready():
 	var quit_btn = $MainContainer/VBoxContainer/QuitButton
 	quit_btn.pressed.connect(_on_quit_pressed)
 	
-	if OS.get_name() == "Web":
-		quit_btn.text = "Disconnect"
-	else:
-		quit_btn.text = "Quit to Desktop"
+	# Unified Text for clearer UX
+	quit_btn.text = "Return to Menu"
 	
 	# Settings Buttons
 	$SettingsContainer/VBoxContainer/BackButton.pressed.connect(_on_back_pressed)

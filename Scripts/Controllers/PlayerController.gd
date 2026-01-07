@@ -460,6 +460,9 @@ func _unhandled_input(event):
 		# NOTE: On applique pas tout de suite à la caméra, ce sera fait dans _physics_process
 
 func _process(delta):
+	# Safety Check: If peer is disconnected, stop processing network logic
+	if not multiplayer.has_multiplayer_peer(): return
+
 	# Interpolation for remote players
 	if not is_multiplayer_authority():
 		# Smooth Movement
