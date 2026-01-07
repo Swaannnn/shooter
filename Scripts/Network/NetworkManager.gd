@@ -16,8 +16,8 @@ var current_room = ""
 # Server State: { peer_id: { "name": "...", "room": "ABCD" } }
 var players_on_server = {} 
 
-# PRODUCTION URL (Update this after Render deploy!)
-var server_url = "wss://shooter-game.onrender.com" 
+# PRODUCTION URL
+var server_url = "wss://shooter-5785.onrender.com" 
 
 func _ready():
 	_load_env() # Try to load .env override
