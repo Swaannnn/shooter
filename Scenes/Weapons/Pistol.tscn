@@ -20,7 +20,7 @@ damage = 15
 fire_rate = 0.15
 reload_sound = ExtResource("7_reload")
 reload_time = 1.8
-recoil_amount = 4.0
+recoil_amount = 3.0
 recoil_recovery = 5.0
 max_recoil_deg = 20.0
 

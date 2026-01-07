@@ -9,6 +9,7 @@ signal resume_requested
 @onready var sensitivity_value_label = $SettingsContainer/VBoxContainer/SensitivityValue
 @onready var volume_slider = $SettingsContainer/VBoxContainer/VolumeSlider # Ensure paths matching scene
 @onready var volume_value_label = $SettingsContainer/VBoxContainer/VolumeValue
+@onready var display_option_button = $SettingsContainer/VBoxContainer/DisplayOptionButton
 
 var player_ref = null
 
@@ -28,9 +29,11 @@ func _ready():
 	$SettingsContainer/VBoxContainer/BackButton.pressed.connect(_on_back_pressed)
 	
 	# Sliders
-	sensitivity_slider.min_value = 0.0
-	sensitivity_slider.max_value = 1.0
-	sensitivity_slider.step = 0.01
+	sensitivity_slider.min_value = 1.0
+	sensitivity_slider.max_value = 10.0
+	sensitivity_slider.step = 0.1
+	sensitivity_slider.value_changed.connect(_on_sensitivity_changed)
+	
 	sensitivity_slider.value_changed.connect(_on_sensitivity_changed)
 	
 	if volume_slider:
@@ -38,6 +41,10 @@ func _ready():
 		volume_slider.max_value = 1.0
 		volume_slider.step = 0.01
 		volume_slider.value_changed.connect(_on_volume_changed)
+		
+	if display_option_button:
+		display_option_button.item_selected.connect(_on_display_mode_selected)
+		_setup_display_options()
 		
 		# Set Default Volume 30% if not previously set (just enforce it once?)
 		# Or sync with current bus volume.
@@ -61,9 +68,12 @@ func setup(player):
 		var current_sens = player_ref.sensitivity
 		if current_sens == null: current_sens = 0.003
 		
-		var slider_val = inverse_lerp(SENS_MIN, SENS_MAX, current_sens)
+		# Visual Mapping: 1.0 - 10.0 corresponds to SENS_MIN - SENS_MAX
+		# inverse_lerp returns 0-1. We map that to 1-10.
+		var t = inverse_lerp(SENS_MIN, SENS_MAX, current_sens)
+		var slider_val = lerp(1.0, 10.0, t)
 		sensitivity_slider.value = slider_val
-		_update_sens_label(current_sens)
+		_update_sens_label(slider_val)
 
 func _on_resume_pressed():
 	emit_signal("resume_requested")
@@ -82,18 +92,22 @@ func _on_quit_pressed():
 
 # --- SETTINGS LOGIC ---
 
-func _on_sensitivity_changed(value_01):
-	# Map 0-1 to SENS_MIN - SENS_MAX
-	var real_sens = lerp(SENS_MIN, SENS_MAX, value_01)
+# --- SETTINGS LOGIC ---
+
+func _on_sensitivity_changed(value_1_10):
+	# Map 1-10 to SENS_MIN - SENS_MAX
+	# First normalize 1-10 to 0-1
+	var t = inverse_lerp(1.0, 10.0, value_1_10)
+	var real_sens = lerp(SENS_MIN, SENS_MAX, t)
 	
 	if player_ref:
 		player_ref.sensitivity = real_sens
 		
-	_update_sens_label(real_sens)
+	_update_sens_label(value_1_10)
 
 func _update_sens_label(val):
-	# Show clean number
-	sensitivity_value_label.text = "%.4f" % val
+	# Show clean number 1.0 - 10.0
+	sensitivity_value_label.text = "%.1f" % val
 
 func _on_volume_changed(value):
 	var bus_index = AudioServer.get_bus_index("Master")
@@ -102,4 +116,31 @@ func _on_volume_changed(value):
 	
 	if volume_value_label:
 		volume_value_label.text = str(round(value * 100)) + "%"
+
+func _setup_display_options():
+	if not display_option_button: return
+	
+	display_option_button.clear()
+	display_option_button.add_item("Windowed", 0) 
+	display_option_button.add_item("Fullscreen", 1) 
+	
+	# Get current mode
+	var current_mode = DisplayServer.window_get_mode()
+	var selected_id = 1 # Default Fullscreen
+	
+	if current_mode == DisplayServer.WINDOW_MODE_WINDOWED:
+		selected_id = 0
+	else:
+		# Any other fullscreen mode = Fullscreen selected
+		selected_id = 1
+		
+	display_option_button.select(selected_id)
+
+func _on_display_mode_selected(index):
+	match index:
+		0: # Windowed
+			DisplayServer.window_set_mode(DisplayServer.WINDOW_MODE_WINDOWED)
+		1: # Fullscreen (Borderless/Exclusive)
+			# User asked for "Just one fullscreen". Fullscreen (Mode 3) is best for Borderless.
+			DisplayServer.window_set_mode(DisplayServer.WINDOW_MODE_FULLSCREEN)
 

@@ -9,6 +9,7 @@ extends Control
 @onready var status_label = $Panel/MainMenu/StatusLabel
 @onready var host_button = $Panel/MainMenu/HostButton
 @onready var join_button = $Panel/MainMenu/JoinButton
+@onready var quit_game_button = $Panel/MainMenu/QuitGameButton
 
 # Lobby Widgets
 @onready var code_button = $Panel/LobbyUI/CodeButton
@@ -19,6 +20,9 @@ func _ready():
 	_show_main_menu()
 	NetworkManager.join_code_ready.connect(_on_join_code_ready)
 	NetworkManager.player_list_updated.connect(_update_lobby_ui)
+	
+	if quit_game_button:
+		quit_game_button.pressed.connect(_on_quit_game_pressed)
 	
 	# Initial UI State
 	if start_button: start_button.disabled = true
@@ -61,7 +65,12 @@ func _on_join_pressed():
 	# Let's switch and disable Start button
 	_show_lobby_ui()
 	code_button.text = "JOINING: " + code
+	_show_lobby_ui()
+	code_button.text = "JOINING: " + code
 	start_button.visible = false # Clients don't see start
+	
+func _on_quit_game_pressed():
+	get_tree().quit()
 
 # --- LOBBY ACTIONS ---
 
@@ -93,8 +102,17 @@ func _on_start_game_pressed():
 	NetworkManager.start_game.rpc()
 
 func _on_leave_pressed():
-	# Simple quit for now, or reload scene
-	get_tree().quit()
+	# Stop Host/Client
+	if multiplayer.multiplayer_peer:
+		multiplayer.multiplayer_peer.close()
+		multiplayer.multiplayer_peer = null
+		
+	# Update NetworkManager state if needed (clear players)
+	NetworkManager.players.clear()
+	
+	# Reset UI to Main Menu
+	_show_main_menu()
+	status_label.text = "Status: Idle"
 
 func _update_lobby_ui():
 	# Refresh Player List
