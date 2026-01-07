@@ -4,7 +4,10 @@ import random
 import string
 import time
 
+from flask_cors import CORS
+
 app = Flask(__name__)
+CORS(app) # Enable CORS for all routes (allows Web Client to talk to Server)
 
 # Store lobbies in memory: { "CODE": { "ip": "1.2.3.4", "port": 7777, "last_seen": timestamp } }
 lobbies = {}
