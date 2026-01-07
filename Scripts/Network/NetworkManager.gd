@@ -43,10 +43,13 @@ func _on_arena_spawned(node):
 	print("✅ ArenaSpawner: Successfully spawned node: ", node.name)
 	
 	# --- AUTO-HOST LOGIC ---
+	# We verify multiple conditions to ensure it triggers on Render
 	var args = OS.get_cmdline_args()
-	if "--server" in args or DisplayServer.get_name() == "headless":
-		print("🚀 STARTING DEDICATED SERVER MODE...")
-		_start_server()
+	var is_rendered_env = OS.has_environment("PORT")
+	if "--server" in args or DisplayServer.get_name() == "headless" or is_rendered_env:
+		print("🚀 STARTING DEDICATED SERVER MODE (Enforced)...")
+		# Give it a tiny delay to ensure peer is ready? No, should be fine.
+		call_deferred("_start_server")
 
 func generate_random_code() -> String:
 	var chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
