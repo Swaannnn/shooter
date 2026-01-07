@@ -156,27 +156,27 @@ func _ready():
 	# Setup Audio
 	audio_jump = AudioStreamPlayer.new()
 	audio_jump.stream = sound_jump
-	audio_jump.bus = "SFX"
+	audio_jump.bus = "Master"
 	add_child(audio_jump)
 	
 	audio_run = AudioStreamPlayer.new()
 	audio_run.stream = sound_run
-	audio_run.bus = "SFX"
+	audio_run.bus = "Master"
 	add_child(audio_run)
 	
 	audio_walk = AudioStreamPlayer.new()
 	audio_walk.stream = sound_walk
-	audio_walk.bus = "SFX"
+	audio_walk.bus = "Master"
 	add_child(audio_walk)
 	
 	audio_crouch = AudioStreamPlayer.new()
 	audio_crouch.stream = sound_crouch
-	audio_crouch.bus = "SFX"
+	audio_crouch.bus = "Master"
 	add_child(audio_crouch)
 	
 	audio_slide = AudioStreamPlayer.new()
 	audio_slide.stream = sound_slide
-	audio_slide.bus = "SFX"
+	audio_slide.bus = "Master"
 	add_child(audio_slide)
 	
 	# Recherche plus robuste de la caméra (récursive)

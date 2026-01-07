@@ -19,14 +19,25 @@ var players_on_server = {}
 # PRODUCTION URL
 var server_url = "wss://shooter-5785.onrender.com" 
 
+# --- SPAWNING SYSTEM FOR PARALLEL GAMES ---
+var arena_scene = preload("res://Scenes/Arenas/TestArena.tscn")
+var arena_spawner: MultiplayerSpawner
+
 func _ready():
-	_load_env() # Try to load .env override
+	_load_env() 
+	
+	# Setup MultiplayerSpawner for Dynamic Arenas
+	arena_spawner = MultiplayerSpawner.new()
+	arena_spawner.spawn_path = "." # Spawn as child of NetworkManager
+	arena_spawner.add_spawnable_scene("res://Scenes/Arenas/TestArena.tscn")
+	add_child(arena_spawner)
+	
 	multiplayer.peer_connected.connect(_on_peer_connected)
 	multiplayer.peer_disconnected.connect(_on_peer_disconnected)
 	multiplayer.connected_to_server.connect(_on_connected_to_server)
 	multiplayer.connection_failed.connect(_on_connection_failed)
 	
-	# --- AUTO-HOST LOGIC (FOR RENDER/DOCKER) ---
+	# --- AUTO-HOST LOGIC ---
 	var args = OS.get_cmdline_args()
 	if "--server" in args or DisplayServer.get_name() == "headless":
 		print("🚀 STARTING DEDICATED SERVER MODE...")
@@ -38,7 +49,7 @@ func generate_random_code() -> String:
 	for i in range(4):
 		code += chars[randi() % chars.length()]
 	return code
-
+	
 func _load_env():
 	if FileAccess.file_exists("res://.env"):
 		var file = FileAccess.open("res://.env", FileAccess.READ)
@@ -99,7 +110,6 @@ func register_player(new_name: String, room_code: String):
 	players_on_server[sender_id] = {"name": new_name, "room": room_code}
 	
 	# Notify clients to refresh their lists
-	# (In a real optimized server, we'd only notify people in the same room)
 	player_list_updated.emit()
 	
 	# Confirm join to the client
@@ -142,14 +152,43 @@ func disconnect_game():
 
 @rpc("any_peer", "call_local", "reliable")
 func request_start_game():
-	# Only server creates the game
+	var sender_id = multiplayer.get_remote_sender_id()
+	
 	if multiplayer.is_server():
-		print("Received Request to Start Game from ", multiplayer.get_remote_sender_id())
-		start_game.rpc()
+		print("Received Request to Start Game from ", sender_id)
+		
+		# 1. Identify Room
+		if not players_on_server.has(sender_id):
+			print("Error: Player not found")
+			return
+		var room_code = players_on_server[sender_id]["room"]
+		
+		# 2. Check if game already running for this room
+		var arena_name = "Arena_" + room_code
+		if has_node(arena_name):
+			print("Game already running for room ", room_code)
+			return
 
-@rpc("call_local", "authority")
-func start_game():
-	print("Starting Game...")
-	# Change scene on all clients
-	get_tree().change_scene_to_file("res://Scenes/Arenas/TestArena.tscn")
-	game_started.emit()
+		# 3. Start Game (Instantiate Node)
+		print("Starting Game for Room: ", room_code)
+		start_game(room_code)
+
+func start_game(room_code: String):
+	# Server-side instantiation
+	# The MultiplayerSpawner will automatically replicate this new node to ALL clients
+	# TODO: Optimization - Use visibility filtering to only show to room members
+	
+	var arena = arena_scene.instantiate()
+	arena.name = "Arena_" + room_code
+	add_child(arena)
+	
+	# Notify clients in this room to switch UI
+	notify_game_started.rpc(room_code)
+
+@rpc("call_local", "reliable")
+func notify_game_started(room_code: String):
+	# Client side: Check if this is MY room
+	if current_room == room_code:
+		print("My Game Started! Hiding Menu...")
+		game_started.emit() # Signal for UI to hide
+

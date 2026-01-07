@@ -34,7 +34,7 @@ func _ready():
 	sensitivity_slider.step = 0.1
 	sensitivity_slider.value_changed.connect(_on_sensitivity_changed)
 	
-	sensitivity_slider.value_changed.connect(_on_sensitivity_changed)
+
 	
 	if volume_slider:
 		volume_slider.min_value = 0.0
