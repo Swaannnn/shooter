@@ -140,6 +140,13 @@ func disconnect_game():
 	players_on_server.clear()
 	game_started.emit() # Reset UI?
 
+@rpc("any_peer", "call_local", "reliable")
+func request_start_game():
+	# Only server creates the game
+	if multiplayer.is_server():
+		print("Received Request to Start Game from ", multiplayer.get_remote_sender_id())
+		start_game.rpc()
+
 @rpc("call_local", "authority")
 func start_game():
 	print("Starting Game...")

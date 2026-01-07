@@ -10,12 +10,10 @@ var pause_scene = null
 
 # Audio Resources
 var sound_jump = preload("res://Assets/Sounds/jump.mp3")
-
 var sound_run = preload("res://Assets/Sounds/run.mp3")
 var sound_walk = preload("res://Assets/Sounds/walk.mp3")
-# Nouveaux sons
-var sound_crouch = preload("res://test/crouch.mp3")
-var sound_slide = preload("res://test/slide.mp3")
+var sound_crouch = preload("res://Assets/Sounds/crouch.mp3")
+var sound_slide = preload("res://Assets/Sounds/slide.mp3")
 
 # Audio Players
 var audio_jump: AudioStreamPlayer = null

@@ -33,6 +33,7 @@ func _ready():
 		# host_button.tooltip_text = "Hosting is not available on Web."
 		# status_label.text = "Web Client Mode (Hosting Disabled)"
 		if leave_button: leave_button.visible = false # Hide Leave Button on Web
+		if quit_game_button: quit_game_button.visible = false # Hide Quit Button on Web
 
 
 
@@ -113,7 +114,8 @@ func _on_code_copy_pressed():
 	timer.timeout.connect(func(): if code_button: code_button.text = "CODE: " + text)
 
 func _on_start_game_pressed():
-	NetworkManager.start_game.rpc()
+	# Request server to start (we can't call start_game directly anymore)
+	NetworkManager.request_start_game.rpc()
 
 func _on_leave_pressed():
 	NetworkManager.disconnect_game()
