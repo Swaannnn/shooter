@@ -77,6 +77,9 @@ jobs:
         run: |
           mkdir -v -p ~/.local/share/godot/export_templates
           mv /root/.local/share/godot/export_templates/${GODOT_VERSION}.stable ~/.local/share/godot/export_templates/${GODOT_VERSION}.stable
+      - name: Remove .blend files (Fix CI Hang)
+        run: find . -name "*.blend" -type f -delete
+
       - name: Import Assets
         run: |
           godot --headless --verbose --editor --quit
@@ -114,6 +117,9 @@ jobs:
         run: |
           mkdir -v -p ~/.local/share/godot/export_templates
           mv /root/.local/share/godot/export_templates/${GODOT_VERSION}.stable ~/.local/share/godot/export_templates/${GODOT_VERSION}.stable
+      - name: Remove .blend files (Fix CI Hang)
+        run: find . -name "*.blend" -type f -delete
+
       - name: Import Assets
         run: |
           godot --headless --verbose --editor --quit
