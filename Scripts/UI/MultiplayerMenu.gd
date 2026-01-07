@@ -36,7 +36,13 @@ func _show_main_menu():
 	main_menu.visible = true
 	lobby_ui.visible = false
 	status_label.text = "Status: Idle"
-	host_button.disabled = false
+	
+	if OS.has_feature("web"):
+		host_button.disabled = true
+		status_label.text = "Web Client Mode (Host Disabled)"
+	else:
+		host_button.disabled = false
+		
 	join_button.disabled = false
 
 func _show_lobby_ui():
