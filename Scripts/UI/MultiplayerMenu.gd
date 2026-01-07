@@ -26,6 +26,11 @@ func _ready():
 	
 	# Initial UI State
 	if start_button: start_button.disabled = true
+	
+	if OS.has_feature("web"):
+		host_button.disabled = true
+		host_button.tooltip_text = "Hosting is not available on Web."
+		status_label.text = "Web Client Mode (Hosting Disabled)"
 
 func _show_main_menu():
 	main_menu.visible = true

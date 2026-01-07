@@ -13,6 +13,10 @@ env:
   GODOT_VERSION: 4.5.1 # Updated to match project version
   EXPORT_NAME: Shooter
 
+permissions:
+  contents: write # Needed for Releases and pushing to gh-pages branch
+
+
 jobs:
   export-windows:
     name: Windows Export
