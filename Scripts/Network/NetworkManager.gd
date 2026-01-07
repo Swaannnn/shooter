@@ -195,11 +195,15 @@ func request_start_game():
 func start_game(room_code: String):
 	# Server-side instantiation
 	# The MultiplayerSpawner will automatically replicate this new node to ALL clients
-	# TODO: Optimization - Use visibility filtering to only show to room members
 	
 	var arena = arena_scene.instantiate()
 	arena.name = "Arena_" + room_code
-	add_child(arena)
+	
+	print("[Before Spawn] Arena Path: ", arena.scene_file_path)
+	print("[Before Spawn] Spawner Configured Scenes: ", arena_spawner.get_spawnable_scene_count())
+	# print("[Before Spawn] Spawner Spawn Path: ", arena_spawner.spawn_path)
+	
+	add_child(arena, true) # Force readable name
 	
 	# Notify clients in this room to switch UI
 	notify_game_started.rpc(room_code)
