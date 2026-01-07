@@ -29,23 +29,23 @@ func _ready():
 			print("Arena: Dedicated Server detected. Skipping Host (1) spawn.")
 			
 	# Client notifies Server it has loaded the map
-	# (Note: Host is both server and client, but since we spawned above, we guard this call or handle duplicate checks)
 	if not multiplayer.is_server():
-		# Wait one frame to be safe? usually _ready is fine
+		print("Arena: Client _ready. Sending notify_level_loaded to Server...")
 		notify_level_loaded.rpc_id(1)
 
 # Handshake: Client -> Server
 @rpc("any_peer", "call_local", "reliable")
 func notify_level_loaded():
 	var sender_id = multiplayer.get_remote_sender_id()
-	print("Arena: Peer %d loaded level. Spawning..." % sender_id)
+	print("Arena: Server received notify_level_loaded from %d" % sender_id)
 	
-	# Verify we haven't already spawned them (e.g. Host calling this locally)
+	# Verify we haven't already spawned them
 	if players_container.has_node(str(sender_id)):
 		print("Arena: Player %d already exists. Skipping." % sender_id)
 		return
 		
 	# Spawn the player for this specific peer
+	print("Arena: Spawning Player Character for %d" % sender_id)
 	multiplayer_spawner.spawn(sender_id)
 
 func _on_peer_connected(id: int):

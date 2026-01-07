@@ -28,14 +28,19 @@ func _ready():
 	
 	# Setup MultiplayerSpawner for Dynamic Arenas
 	arena_spawner = MultiplayerSpawner.new()
-	arena_spawner.spawn_path = "." # Spawn as child of NetworkManager
+	arena_spawner.name = "ArenaSpawner" # CRITICAL: Names must match on Client/Server!
+	arena_spawner.spawn_path = "." 
 	arena_spawner.add_spawnable_scene("res://Scenes/Arenas/TestArena.tscn")
+	arena_spawner.spawned.connect(_on_arena_spawned)
 	add_child(arena_spawner)
 	
 	multiplayer.peer_connected.connect(_on_peer_connected)
 	multiplayer.peer_disconnected.connect(_on_peer_disconnected)
 	multiplayer.connected_to_server.connect(_on_connected_to_server)
 	multiplayer.connection_failed.connect(_on_connection_failed)
+	
+func _on_arena_spawned(node):
+	print("✅ ArenaSpawner: Successfully spawned node: ", node.name)
 	
 	# --- AUTO-HOST LOGIC ---
 	var args = OS.get_cmdline_args()
@@ -191,4 +196,3 @@ func notify_game_started(room_code: String):
 	if current_room == room_code:
 		print("My Game Started! Hiding Menu...")
 		game_started.emit() # Signal for UI to hide
-
