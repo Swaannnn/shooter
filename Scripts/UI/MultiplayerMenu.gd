@@ -54,31 +54,30 @@ func _show_lobby_ui():
 # --- MAIN MENU ACTIONS ---
 
 func _on_host_pressed():
-	status_label.text = "Status: Creating Lobby..."
+	# "Host" now means "Create Private Room" on the Dedicated Server
+	status_label.text = "Status: Creating Room..."
 	host_button.disabled = true
 	join_button.disabled = true
-	NetworkManager.host_game()
-	# Wait for code...
+	
+	var new_room_code = NetworkManager.generate_random_code()
+	NetworkManager.join_game(NetworkManager.server_url, new_room_code)
 
 func _on_join_pressed():
-	var code = join_input.text
+	var code = join_input.text.strip_edges().to_upper()
 	if code == "":
-		status_label.text = "Error: Input Code or IP"
+		status_label.text = "Error: Input Room Code"
 		return
 		
-	status_label.text = "Status: Joining..."
+	status_label.text = "Status: Joining Room..."
 	join_button.disabled = true
 	host_button.disabled = true
-	NetworkManager.join_with_code(code)
 	
-	# Assume join success for now, switch to lobby view waiting for confirmation?
-	# Better to wait or just switch and show "Connecting..." inside lobby?
-	# Let's switch and disable Start button
-	_show_lobby_ui()
+	NetworkManager.join_game(NetworkManager.server_url, code)
+	
+	# UI Feedback
 	code_button.text = "JOINING: " + code
+	start_button.visible = true # Everyone can start? Or logic handled by server?
 	_show_lobby_ui()
-	code_button.text = "JOINING: " + code
-	start_button.visible = false # Clients don't see start
 	
 func _on_quit_game_pressed():
 	get_tree().quit()
