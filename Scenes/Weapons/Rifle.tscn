@@ -27,10 +27,10 @@ max_ammo = 30
 current_ammo = 30
 reload_time = 2.5
 recoil_amount = 1.0
-recoil_recovery = 2.0
+recoil_recovery = 5.0
 max_recoil_deg = 25.0
 recoil_growth_start = 4
-recoil_growth_factor = 0.5
+recoil_growth_factor = 0.8
 
 [node name="RayCast3D" type="RayCast3D" parent="."]
 target_position = Vector3(0, 0, -200)

@@ -50,8 +50,9 @@ var original_camera_y = 0.0
 
 # Recoil System
 var mouse_rotation_x: float = 0.0 # Rotation X brute (input souris) sans le recul
-var current_recoil_x: float = 0.0 # Recul actuel en degrés (PITCH)
-var current_recoil_y: float = 0.0 # Recul actuel en degrés (YAW - Horizontal)
+var current_recoil_x: float = 0.0 # Recul actuel en degrés (PITCH Camera)
+var current_recoil_y: float = 0.0 # Recul actuel en degrés (YAW Spray)
+var current_spray_pitch: float = 0.0 # Recul actuel en degrés (PITCH Spray - Balles uniquement)
 var target_recoil_x: float = 0.0 # Cible du recul
 var recoil_recovery_speed: float = 5.0
 
@@ -234,7 +235,6 @@ func _ready():
 	pause_instance.visible = false
 	pause_instance.setup(self) # On passe self pour que le menu puisse modifier la sensibilité
 	pause_instance.resume_requested.connect(_toggle_pause)
-	pause_instance.quit_requested.connect(_on_quit_game)
 	
 	# Recherche de l'arme et connexion
 	# Au lieu de 'find', on équipe l'arme par défaut pour tout le monde au spawn
@@ -268,12 +268,13 @@ func _on_died():
 	# On garde la caméra active, mais on change la logique de mouvement dans physics_process
 
 func _on_quit_game():
-	get_tree().quit()
+	# Retour Lobby propre via NetworkManager
+	NetworkManager.disconnect_game()
 
 func _toggle_pause():
 	is_paused = !is_paused
 	pause_instance.visible = is_paused
-	get_tree().paused = is_paused # Met le jeu en pause (arrête _process et _physics_process sur les noeuds par défaut)
+	# get_tree().paused = is_paused # REMOVED: User wants game to continue
 	
 	if is_paused:
 		Input.set_mouse_mode(Input.MOUSE_MODE_VISIBLE)
@@ -403,14 +404,19 @@ func _on_weapon_fired():
 	if current_weapon:
 		var recoil_vec = current_weapon.get_recoil_vector()
 		
-		# PITCH (Vertical)
+		# PITCH CAMERA (Vertical Main)
 		current_recoil_x += recoil_vec.x
 		if current_recoil_x > current_weapon.max_recoil_deg:
 			current_recoil_x = current_weapon.max_recoil_deg
 			
-		# YAW (Horizontal / Spray)
+		# YAW SPRAY (Horizontal)
 		current_recoil_y += recoil_vec.y
 		current_recoil_y = clamp(current_recoil_y, -15.0, 15.0)
+		
+		# PITCH SPRAY (Vertical Jitter)
+		if recoil_vec is Vector3:
+			current_spray_pitch += recoil_vec.z
+			current_spray_pitch = clamp(current_spray_pitch, -5.0, 5.0)
 			
 		recoil_recovery_speed = current_weapon.recoil_recovery
 
@@ -444,7 +450,7 @@ func _unhandled_input(event):
 	if event is InputEventKey and event.pressed and event.keycode == KEY_B:
 		_toggle_shop()
 		
-	if is_shop_open: return # Pas de mouvement de caméra si boutique ouverte
+	if is_shop_open or is_paused: return # Pas de mouvement de caméra si boutique/pause ouverte
 	
 	if not camera: return # Sécurité pour éviter le crash
 	
@@ -500,47 +506,38 @@ func _physics_process(delta):
 		audio_jump.play()
 
 	# Gestion du retour du recul (Recovery)
-	if current_weapon:
-		var current_time = Time.get_ticks_msec() / 1000.0
-		var time_since_fire = current_time - current_weapon.get("last_fire_time")
-		
-		if time_since_fire > 0.4:
-			# APRES le tir (Idle) : Recovery accéléré pour un reset net
-			# User request: "Commence direct, mais plus lent qu'il monte" + "Pas de TP à la fin"
-			# + "Augmente de 0.5s" -> On ralentit encore le retour
-			# Multiplicateur réduit à 1.0 (Vitesse normale) pour un atterrissage en douceur
-			var fast_recovery = recoil_recovery_speed * 1.0
-			current_recoil_x = move_toward(current_recoil_x, 0.0, fast_recovery * delta)
-			current_recoil_y = move_toward(current_recoil_y, 0.0, fast_recovery * delta)
-			
-			# Snap to zero: Seuil minime pour éviter le TP visible
-			if abs(current_recoil_x) < 0.01: current_recoil_x = 0.0
-			if abs(current_recoil_y) < 0.01: current_recoil_y = 0.0
-		else:
-			# PENDANT ou JUSTE APRES : Recovery normale
-			# Pour le Pistolet, le user veut que ça redescende "direct" mais "smooth".
-			# Donc on applique la recovery tout le temps.
-			current_recoil_x = move_toward(current_recoil_x, 0.0, recoil_recovery_speed * delta)
-			current_recoil_y = move_toward(current_recoil_y, 0.0, recoil_recovery_speed * delta)
-	else:
-		current_recoil_x = move_toward(current_recoil_x, 0.0, recoil_recovery_speed * delta)
-		current_recoil_y = move_toward(current_recoil_y, 0.0, recoil_recovery_speed * delta)
+	# Gestion du retour du recul (Recovery)
+	# On applique le recovery TOUT LE TEMPS via Lerp pour un retour smooth.
+	# La gâchette n'est pas nécessaire ici car le Weapon.gd gère la montée quand on tire.
+	# Si on tire: Montée > Descente (donc ça monte). Si on lâche: Montée = 0, donc Descente gagne.
+	
+	current_recoil_x = lerp(current_recoil_x, 0.0, recoil_recovery_speed * delta)
+	current_recoil_y = lerp(current_recoil_y, 0.0, recoil_recovery_speed * delta)
+	current_spray_pitch = lerp(current_spray_pitch, 0.0, recoil_recovery_speed * delta)
+	
+	# Snap to zero pour éviter les flottements
+	if abs(current_recoil_x) < 0.01: current_recoil_x = 0.0
+	if abs(current_recoil_y) < 0.01: current_recoil_y = 0.0
+	if abs(current_spray_pitch) < 0.01: current_spray_pitch = 0.0
 	
 	if camera:
 		# Application finale:
-		# PITCH (X) : mouse_rotation_x + Recul (toujours positif accumulé, on l'ajoute/soustrait selon le sens voulu)
-		# User wanted UP -> So we subtract absolute recoil value to X (Negative X = Look Up).
-		# Mais le user a dit que "mouse + abs()" montait. (Probablement mouse_x est inversé quelque part, bref on garde ce qui marche).
+		# PITCH (X) : mouse_rotation_x + Recul Camera
 		camera.rotation.x = mouse_rotation_x + deg_to_rad(abs(current_recoil_x))
+		# YAW (Y) : Reset
+		camera.rotation.y = 0.0
 		
-		# YAW (Y) : Recul Horizontal
-		# On applique ça sur la caméra uniquement (pas le corps du joueur), pour que le crosshair bouge
-		# mais que le "devant" du joueur reste stable (plus simple pour la recovery).
-		# Attention : camera.rotation.y est généralement 0.
-		camera.rotation.y = deg_to_rad(current_recoil_y)
+		# Application sur l'Arme/Raycast (Spray Pattern)
+		if current_weapon and "raycast_node" in current_weapon and current_weapon.raycast_node:
+			# YAW Spray (Horizontal)
+			current_weapon.raycast_node.rotation.y = deg_to_rad(current_recoil_y)
+			# PITCH Spray (Vertical Jitter) - Added on top of camera pitch
+			current_weapon.raycast_node.rotation.x = deg_to_rad(-current_spray_pitch) # Negative because Up is negative X
+			
+			current_weapon.rotation.y = 0.0 # Reset visual if needed
 
 	# Gestion du tir
-	if current_weapon and not is_shop_open and not is_dead: # Added not is_dead
+	if current_weapon and not is_shop_open and not is_dead and not is_paused: # Added not is_paused
 		if current_weapon.automatic:
 			if Input.is_action_pressed("fire"):
 				current_weapon.shoot()
