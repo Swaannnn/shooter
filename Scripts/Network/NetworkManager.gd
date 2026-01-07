@@ -38,9 +38,13 @@ func _ready():
 	# Setup MultiplayerSpawner for Dynamic Arenas
 	arena_spawner = MultiplayerSpawner.new()
 	arena_spawner.name = "ArenaSpawner" # CRITICAL: Names must match on Client/Server!
-	# arena_spawner.spawn_path defaults to Parent (NetworkManager), which is correct.
-	# Setting it to "." made it look inside itself, but we add_child to NetworkManager.
+	arena_spawner.spawn_path = "." # Matches Parent (NetworkManager)? No, wait. 
+	# If we use spawn(), the return value of spawn_function is added as a child of the NODE spawn_path points to.
+	# Default is parent. Let's be explicit and spawn UNDER the NetworkManager.
 	
+	arena_spawner.spawn_function = _spawn_arena # Callback
+	
+	# We still add the scene to list for validation
 	arena_spawner.add_spawnable_scene("res://Scenes/Arenas/TestArena.tscn")
 	arena_spawner.spawned.connect(_on_arena_spawned)
 	add_child(arena_spawner)
@@ -63,6 +67,13 @@ func _ready():
 
 func _on_arena_spawned(node):
 	print("✅ ArenaSpawner: Successfully spawned node: ", node.name)
+
+# Custom Spawn Function (Executed on Server AND Clients)
+func _spawn_arena(room_code: Variant) -> Node:
+	print("⚡ Spawning Arena for Room: ", room_code)
+	var arena = arena_scene.instantiate()
+	arena.name = "Arena_" + str(room_code)
+	return arena
 
 func generate_random_code() -> String:
 	var chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
@@ -175,6 +186,7 @@ func disconnect_game():
 func request_start_game():
 	var sender_id = multiplayer.get_remote_sender_id()
 	
+	# Only server processes this request
 	if multiplayer.is_server():
 		print("Received Request to Start Game from ", sender_id)
 		
@@ -195,18 +207,13 @@ func request_start_game():
 		start_game(room_code)
 
 func start_game(room_code: String):
-	# Server-side instantiation
-	# The MultiplayerSpawner will automatically replicate this new node to ALL clients
+	# Using Explicit Spawn Function for reliability
+	print("[Start Game] Requesting Spawn for Room: ", room_code)
 	
-	var arena = arena_scene.instantiate()
-	arena.name = "Arena_" + room_code
-	
-	print("[Before Spawn] Arena Path: ", arena.scene_file_path)
-	print("[Before Spawn] Spawner Configured Scenes: ", arena_spawner.get_spawnable_scene_count())
-	# print("[Before Spawn] Spawner Spawn Path: ", arena_spawner.spawn_path)
-	
-	add_child(arena, true) # Force readable name
-	
+	# This triggers _spawn_arena on Server AND checks inputs
+	# The return value (Arena Node) is then added as child of spawn_path (NetworkManager)
+	arena_spawner.spawn(room_code)
+
 	# Notify clients in this room to switch UI
 	notify_game_started.rpc(room_code)
 
