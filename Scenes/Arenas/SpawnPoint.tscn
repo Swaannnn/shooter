@@ -1,0 +1,8 @@
+[gd_scene load_steps=2 format=3 uid="uid://d3x5f7q9z2w1"]
+
+[ext_resource type="Script" path="res://Scenes/Arenas/SpawnPoint.gd" id="1_script"]
+
+
+[node name="SpawnPoint" type="Node3D" groups=["SpawnPoint"]]
+script = ExtResource("1_script")
+

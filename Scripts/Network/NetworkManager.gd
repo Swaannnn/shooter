@@ -1,7 +1,7 @@
 extends Node
 
 const DEFAULT_PORT = 7777
-const MAX_CLIENTS = 100 
+const MAX_CLIENTS = 100
 
 var peer: WebSocketMultiplayerPeer
 
@@ -15,10 +15,16 @@ var my_name = "Player"
 var current_room = ""
 
 # Server State: { peer_id: { "name": "...", "room": "ABCD" } }
-var players_on_server = {} 
+var players_on_server = {}
 
-# PRODUCTION URL
-var server_url = "wss://shooter-5785.onrender.com" 
+# ENVIRONMENTS
+const URL_PROD = "wss://shooter-5785.onrender.com"
+const URL_DEV = "wss://shooter-dev.onrender.com"
+
+# Config
+@export_enum("Auto", "Prod", "Dev", "Local") var target_environment: String = "Auto"
+var server_url = URL_DEV
+ 
 
 # --- SPAWNING SYSTEM FOR PARALLEL GAMES ---
 var arena_scene = preload("res://Scenes/Arenas/TestArena.tscn")
@@ -35,12 +41,30 @@ func _ready():
 	print("---------------------------------\n\n")
 
 	print("[INIT] Step 1: Loading Env...")
-	_load_env() 
+	# _load_env() # Optional if you use .env
+	
+	# Resolve Auto Environment
+	var final_env = target_environment
+	if final_env == "Auto":
+		if OS.is_debug_build():
+			final_env = "Dev" # Editeur Godot = Dev Server
+		else:
+			final_env = "Prod" # Export Release (.exe public) = Prod Server
+			
+	# Select URL
+	match final_env:
+		"Prod": server_url = URL_PROD
+		"Dev": server_url = URL_DEV
+		"Local": server_url = "ws://127.0.0.1:7777"
+		
+	print("NetworkManager Configured for: ", final_env, " (Target: ", target_environment, ")")
+	print("Target URL: ", server_url)
+ 
 	
 	print("[INIT] Step 2: Creating MultiplayerSpawner...")
 	# Setup MultiplayerSpawner for Dynamic Arenas
 	arena_spawner = MultiplayerSpawner.new()
-	arena_spawner.name = "ArenaSpawner" 
+	arena_spawner.name = "ArenaSpawner"
 	
 	# Fix: Explicitly point to Parent (NetworkManager) as the container for arenas.
 	# "." = Spawner itself (Wrong, unless Spawner is a Node3D/Container and we want hierarchy there)
@@ -119,7 +143,7 @@ func _start_server():
 func join_game(url: String, room_code: String):
 	if url.strip_edges() == "":
 		# Dev fallback
-		url = "ws://127.0.0.1:7777" 
+		url = "ws://127.0.0.1:7777"
 	
 	# Fix URL scheme if missing
 	if not url.begins_with("ws://") and not url.begins_with("wss://"):
@@ -156,7 +180,7 @@ func register_player(new_name: String, room_code: String):
 			break
 	
 	players_on_server[sender_id] = {
-		"name": new_name, 
+		"name": new_name,
 		"room": room_code,
 		"is_host": is_host
 	}
