@@ -1,0 +1,23 @@
+services:
+  # PROD SERVER (Main Branch)
+  - type: web
+    name: shooter-prod
+    env: docker
+    repo: https://github.com/Swaannnn/shooter # Automatically detected by Render usually
+    branch: main
+    plan: free # or starter
+    autoDeploy: true
+    envVars:
+      - key: PORT
+        value: 7777
+
+  # DEV SERVER (Develop Branch)
+  - type: web
+    name: shooter-dev
+    env: docker
+    branch: develop
+    plan: free
+    autoDeploy: true
+    envVars:
+      - key: PORT
+        value: 7777

@@ -68,7 +68,7 @@ func _fire_ray_with_spread():
 			if health_comp:
 				# Networked Damage
 				if is_multiplayer_authority():
-					health_comp.take_damage.rpc(damage)
+					health_comp.take_damage.rpc(damage, multiplayer.get_unique_id())
 			elif collider.has_method("take_damage"):
 				collider.take_damage(damage) # Dégâts PAR PLOMB
 			else:
@@ -88,7 +88,7 @@ func _fire_ray_with_spread():
 					
 		# Legacy check
 		elif collider.has_node("HealthComponent"):
-			collider.get_node("HealthComponent").take_damage(damage)
+			collider.get_node("HealthComponent").take_damage(damage, multiplayer.get_unique_id())
 	else:
 		end_pos = raycast_node.global_position + (-raycast_node.global_transform.basis.z * max_distance)
 		
@@ -251,4 +251,3 @@ func shoot():
 		
 		if current_ammo <= 0:
 			start_reload()
-

@@ -18,10 +18,10 @@ anchor_left = 0.5
 anchor_top = 0.5
 anchor_right = 0.5
 anchor_bottom = 0.5
-offset_left = -200.0
-offset_top = -150.0
-offset_right = 200.0
-offset_bottom = 150.0
+offset_left = -400.0
+offset_top = -300.0
+offset_right = 400.0
+offset_bottom = 300.0
 grow_horizontal = 2
 grow_vertical = 2
 
@@ -78,6 +78,22 @@ text = "JOIN GAME"
 layout_mode = 2
 theme_override_constants/separation = 20
 
+[node name="LocalContainer" type="HBoxContainer" parent="Panel/MainMenu"]
+layout_mode = 2
+alignment = 1
+
+[node name="HostLocalButton" type="Button" parent="Panel/MainMenu/LocalContainer"]
+layout_mode = 2
+text = "HOST LOCAL"
+
+[node name="JoinLocalButton" type="Button" parent="Panel/MainMenu/LocalContainer"]
+layout_mode = 2
+text = "JOIN LOCAL"
+
+[node name="HSeparator4" type="HSeparator" parent="Panel/MainMenu"]
+layout_mode = 2
+theme_override_constants/separation = 20
+
 [node name="QuitGameButton" type="Button" parent="Panel/MainMenu"]
 layout_mode = 2
 text = "QUIT TO DESKTOP"
@@ -115,7 +131,35 @@ layout_mode = 2
 text = "Players Connected:"
 horizontal_alignment = 1
 
-[node name="PlayerList" type="ItemList" parent="Panel/LobbyUI"]
+[node name="TeamColumns" type="HBoxContainer" parent="Panel/LobbyUI"]
+layout_mode = 2
+size_flags_vertical = 3
+theme_override_constants/separation = 20
+alignment = 1
+
+[node name="BlueColumn" type="VBoxContainer" parent="Panel/LobbyUI/TeamColumns"]
+layout_mode = 2
+size_flags_horizontal = 3
+
+[node name="JoinBlueButton" type="Button" parent="Panel/LobbyUI/TeamColumns/BlueColumn"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.2, 0.5, 1, 1)
+text = "JOIN BLUE (0/5)"
+
+[node name="BlueList" type="ItemList" parent="Panel/LobbyUI/TeamColumns/BlueColumn"]
+layout_mode = 2
+size_flags_vertical = 3
+
+[node name="RedColumn" type="VBoxContainer" parent="Panel/LobbyUI/TeamColumns"]
+layout_mode = 2
+size_flags_horizontal = 3
+
+[node name="JoinRedButton" type="Button" parent="Panel/LobbyUI/TeamColumns/RedColumn"]
+layout_mode = 2
+theme_override_colors/font_color = Color(1, 0.2, 0.2, 1)
+text = "JOIN RED (0/5)"
+
+[node name="RedList" type="ItemList" parent="Panel/LobbyUI/TeamColumns/RedColumn"]
 layout_mode = 2
 size_flags_vertical = 3
 
@@ -129,6 +173,10 @@ text = "LEAVE LOBBY"
 
 [connection signal="pressed" from="Panel/MainMenu/HostButton" to="." method="_on_host_pressed"]
 [connection signal="pressed" from="Panel/MainMenu/JoinButton" to="." method="_on_join_pressed"]
+[connection signal="pressed" from="Panel/MainMenu/LocalContainer/HostLocalButton" to="." method="_on_host_local_pressed"]
+[connection signal="pressed" from="Panel/MainMenu/LocalContainer/JoinLocalButton" to="." method="_on_join_local_pressed"]
 [connection signal="pressed" from="Panel/LobbyUI/CodeButton" to="." method="_on_code_copy_pressed"]
+[connection signal="pressed" from="Panel/LobbyUI/TeamColumns/BlueColumn/JoinBlueButton" to="." method="_on_join_blue_pressed"]
+[connection signal="pressed" from="Panel/LobbyUI/TeamColumns/RedColumn/JoinRedButton" to="." method="_on_join_red_pressed"]
 [connection signal="pressed" from="Panel/LobbyUI/StartButton" to="." method="_on_start_game_pressed"]
 [connection signal="pressed" from="Panel/LobbyUI/LeaveButton" to="." method="_on_leave_pressed"]

@@ -1,0 +1,23 @@
+[gd_scene load_steps=4 format=3 uid="uid://b2v8lam4l5n6"]
+
+[ext_resource type="Script" path="res://Scenes/Arenas/Barrier.gd" id="1_script"]
+
+[sub_resource type="BoxShape3D" id="BoxShape3D_1"]
+size = Vector3(5, 3, 0.5)
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_1"]
+transparency = 1
+albedo_color = Color(1, 0, 0, 0.5)
+
+[sub_resource type="BoxMesh" id="BoxMesh_1"]
+material = SubResource("StandardMaterial3D_1")
+size = Vector3(5, 3, 0.5)
+
+[node name="Barrier" type="StaticBody3D"]
+script = ExtResource("1_script")
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="."]
+shape = SubResource("BoxShape3D_1")
+
+[node name="MeshInstance3D" type="MeshInstance3D" parent="."]
+mesh = SubResource("BoxMesh_1")
