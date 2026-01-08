@@ -529,6 +529,24 @@ func _process(delta):
 	# Safety Check: If peer is disconnected, stop processing network logic
 	if not multiplayer.has_multiplayer_peer(): return
 
+	# --- BRUTE FORCE VISIBILITY ENFORCEMENT ---
+	# Ensure dead players are NEVER visible. Poll GameManager directly.
+	var my_pid = str(name).to_int()
+	if GameManager.players_data.has(my_pid):
+		if not GameManager.players_data[my_pid]["alive"]:
+			if visible:
+				visible = false
+				# Also disable collision if it wasn't done
+				if collision_shape and not collision_shape.disabled:
+					collision_shape.disabled = true
+			
+			# If we are the authority (Client or Host dying), run spectator
+			if is_multiplayer_authority():
+				_process_spectator(delta)
+			
+			# Stop processing visual interpolation for dead entities
+			return
+
 	# Interpolation for remote players
 	if not is_multiplayer_authority():
 		# Smooth Movement
@@ -540,10 +558,22 @@ func _process(delta):
 	# Smooth Camera Look (Up/Down)
 		if camera:
 			camera.rotation.x = lerp_angle(camera.rotation.x, sync_cam_rotation, 20.0 * delta)
-	
-	if is_dead and is_multiplayer_authority():
-		_process_spectator(delta)
-		return
+			
+	# VISIBILITY RESTORATION (Brute Force Reverse)
+	# If we are alive but hidden, show ourselves (fix for respawn visibility)
+	if GameManager.players_data.has(my_pid) and GameManager.players_data[my_pid]["alive"]:
+		if not visible:
+			# Only show if intended (e.g. not local authority wanting to hide body mesh)
+			# Actually 'visible' on ROOT should always be true if alive.
+			visible = true
+			if collision_shape: collision_shape.disabled = false
+			
+			# Restore Body Mesh Visibility based on Authority
+			if has_node("CollisionShape3D/BodyMesh"):
+				if is_multiplayer_authority():
+					$CollisionShape3D/BodyMesh.visible = false
+				else:
+					$CollisionShape3D/BodyMesh.visible = true
 
 	# Update Name Tag (Text & Color)
 	_update_name_label()
