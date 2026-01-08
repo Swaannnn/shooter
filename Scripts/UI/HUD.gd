@@ -12,13 +12,33 @@ func _ready():
 	ammo_label.visible = false
 	if round_label:
 		round_label.text = ""
+		
+	# Connect to GameManager signals for HUD updates
+	GameManager.round_timer_updated.connect(_on_round_timer_updated)
+	GameManager.score_updated.connect(update_scores)
+	GameManager.round_started.connect(_on_round_started)
 
 func update_ammo(current, max_ammo):
 	if max_ammo > 0:
 		ammo_label.visible = true
 		ammo_label.text = str(current) + " / " + str(max_ammo)
 	else:
-		ammo_label.visible = false 
+		ammo_label.visible = false
+
+
+func _on_round_started():
+	# Visual only, logic handled by timer updates
+	if round_label: round_label.visible = true
+
+func _on_round_timer_updated(time_left):
+	if round_label:
+		if time_left > 0:
+			round_label.text = "STARTS IN %.1f" % time_left
+			round_label.visible = true
+		else:
+			round_label.text = "FIGHT !"
+			await get_tree().create_timer(1.0).timeout
+			round_label.visible = false
 
 func update_health(amount):
 	if health_label:

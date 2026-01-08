@@ -3,6 +3,9 @@ extends CharacterBody3D
 @export var gravity = 9.8
 @export var default_weapon_scene: PackedScene # Weapon to equip on spawn
 
+# Team ID
+@export var team_id: int = 1 # 1: Blue, 2: Red
+
 @onready var camera: Camera3D
 var hud_scene = null
 var shop_scene = null
@@ -124,14 +127,20 @@ func _ready():
 	if id % 2 == 0:
 		team_id = 2
 	
-	# Register to GameManager
-	if is_multiplayer_authority():
-		if multiplayer.is_server():
-			GameManager.register_player(id, name, team_id)
-		else:
-			rpc_id(1, "register_request", id, name, team_id)
-
-	# Apply Team Colors
+	# Register to GameManager (Deprecated? Logic moved to NetworkManager spawn)
+	# But we keep this for robust check or late join?
+	# NetworkManager._spawn_arena registers everyone on Server.
+	
+	# Fetch Team from GameManager (Server Side Source of Truth)
+	if multiplayer.is_server():
+		var stored_team = GameManager.get_player_team(id)
+		if stored_team != 0:
+			team_id = stored_team
+		
+		# Sync to clients
+		rpc("sync_team_data", team_id)
+	
+	# Initial Color Apply (Might be default Blue, upgraded later by sync)
 	_apply_team_color(team_id)
 
 	# Network Authority Check
@@ -284,22 +293,34 @@ func _on_died():
 	
 	# Tell Server we died
 	if is_multiplayer_authority():
-		rpc("notify_death", str(name).to_int())
+		var killer_id = -1
+		if has_node("HealthComponent"):
+			killer_id = $HealthComponent.last_attacker_id
+		rpc("notify_death", str(name).to_int(), killer_id)
 	
 	# Désactiver les collisions
-	$CollisionShape3D.disabled = true
+	if collision_shape: collision_shape.disabled = true
 	
 	# Cacher l'arme et les bras
 	if current_weapon:
 		current_weapon.visible = false
+		
+	# Cacher le corps du joueur
+	if has_node("CollisionShape3D/BodyMesh"):
+		$CollisionShape3D/BodyMesh.visible = false
 	
 	# Switch to Spectator
 	_enable_spectator_mode()
 
+@rpc("call_local", "reliable")
+func sync_team_data(new_team):
+	team_id = new_team
+	_apply_team_color(team_id)
+	
 @rpc("any_peer")
-func notify_death(id):
+func notify_death(id, killer_id = -1):
 	if multiplayer.is_server():
-		GameManager.player_died(id)
+		GameManager.player_died(id, killer_id)
 
 @rpc("any_peer")
 func register_request(pid, pname, pteam):
@@ -356,8 +377,18 @@ func _cycle_spectator_target(dir):
 func _on_respawn_signal():
 	# Reset
 	is_dead = false
-	$CollisionShape3D.disabled = false
+	if collision_shape: collision_shape.disabled = false
 	if current_weapon: current_weapon.visible = true
+	
+	# Restore Body Visibility (Only for others, or if we want to see legs etc)
+	# Logic: If I am authority, I usually hide my body. If I am remote, I show it.
+	if has_node("CollisionShape3D/BodyMesh"):
+		# If we are NOT authority, we definitely show it.
+		# If we ARE authority, we keep it hidden (as per _ready logic)
+		if not is_multiplayer_authority():
+			$CollisionShape3D/BodyMesh.visible = true
+		else:
+			$CollisionShape3D/BodyMesh.visible = false # Or true if we support visible body
 	
 	# Random Spawn (TODO: Use real spawn points)
 	global_position = Vector3(randf_range(-5, 5), 5, randf_range(-5, 5))
@@ -705,6 +736,12 @@ func _physics_process(delta):
 			if audio_crouch: audio_crouch.play()
 
 	# --- Movement Physics ---
+	if is_dead:
+		velocity.x = 0
+		velocity.z = 0
+		move_and_slide()
+		return
+
 	var direction = Vector3.ZERO
 	var current_speed = speed_walk
 	

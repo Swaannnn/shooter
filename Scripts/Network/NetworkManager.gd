@@ -102,7 +102,20 @@ func _spawn_arena(room_code: Variant) -> Node:
 	print("⚡ Spawning Arena for Room: ", room_code)
 	var arena = arena_scene.instantiate()
 	arena.name = "Arena_" + str(room_code)
-	arena.room_code = str(room_code) # Assign room code for client-side filtering
+	arena.room_code = str(room_code)
+	
+	# Register Players in GameManager (SERVER ONLY)
+	# Because GameManager is global, this supports only 1 active game per server instance properly
+	# For multi-game, GameManager logic needs to be moved inside Arena
+	if multiplayer.is_server():
+		print("Server: Registering players for room ", room_code)
+		# We use players_on_server for source of truth
+		for pid in players_on_server:
+			if players_on_server[pid]["room"] == str(room_code):
+				var info = players_on_server[pid]
+				var team = info.get("team", 1)
+				GameManager.register_player(pid, info["name"], team)
+	
 	return arena
 
 func generate_random_code() -> String:
@@ -139,6 +152,34 @@ func _start_server():
 	multiplayer.multiplayer_peer = peer
 	print("✅ Dedicated Server Listening on Port %d" % port)
 
+func host_game_local(room_code = "LOCAL"):
+	# Hosts a LISTEN server (Client acts as Host)
+	peer = WebSocketMultiplayerPeer.new()
+	var error = peer.create_server(DEFAULT_PORT)
+	if error != OK:
+		print("❌ Failed to create local server: ", error)
+		return
+		
+	multiplayer.multiplayer_peer = peer
+	print("✅ Local Server Started on Port %d" % DEFAULT_PORT)
+	
+	# Register Self as Host
+	current_room = room_code
+	# my_name = "LocalHost" # REMOVED: Keep the name set by input
+	
+	# Manually register self in players_on_server
+	players_on_server[1] = {
+		"name": my_name,
+		"room": room_code,
+		"is_host": true
+	}
+	players_in_room = players_on_server.duplicate()
+	
+	# Trigger UI success
+	join_room_success.emit(room_code)
+	player_list_updated.emit()
+
+
 # --- CLIENT JOINING ---
 func join_game(url: String, room_code: String):
 	if url.strip_edges() == "":
@@ -168,21 +209,55 @@ var players_in_room = {}
 # --- ROOM MANAGEMENT ---
 
 @rpc("any_peer", "call_local", "reliable")
+func request_change_team(new_team: int):
+	var sender_id = multiplayer.get_remote_sender_id()
+	
+	if multiplayer.is_server():
+		if players_on_server.has(sender_id):
+			var room = players_on_server[sender_id]["room"]
+			
+			# Check Capacity
+			var count = 0
+			for pid in players_on_server:
+				if players_on_server[pid]["room"] == room and players_on_server[pid].get("team", 1) == new_team:
+					count += 1
+			
+			if count >= 5:
+				print("Team Full!")
+				return # Reject change
+			
+			players_on_server[sender_id]["team"] = new_team
+			_update_room_players(room)
+			print("Player ", sender_id, " changed to team ", new_team)
+
+@rpc("any_peer", "call_local", "reliable")
 func register_player(new_name: String, room_code: String):
 	var sender_id = multiplayer.get_remote_sender_id()
 	print("📩 Player %d registering for Room: %s" % [sender_id, room_code])
 	
 	# Determine Host (First player in this room)
 	var is_host = true
+	var blue_count = 0
+	var red_count = 0
+	
 	for pid in players_on_server:
 		if players_on_server[pid]["room"] == room_code:
 			is_host = false
-			break
+			if players_on_server[pid].get("team", 1) == 1:
+				blue_count += 1
+			else:
+				red_count += 1
+	
+	# Auto-Balance Assign
+	var assigned_team = 1
+	if red_count < blue_count:
+		assigned_team = 2
 	
 	players_on_server[sender_id] = {
 		"name": new_name,
 		"room": room_code,
-		"is_host": is_host
+		"is_host": is_host,
+		"team": assigned_team
 	}
 	
 	# Confirm join to the client

@@ -26,6 +26,13 @@ custom_minimum_size = Vector2(4, 4)
 layout_mode = 2
 mouse_filter = 2
 
+[node name="RoundLabel" type="Label" parent="CenterContainer"]
+layout_mode = 2
+theme_override_font_sizes/font_size = 48
+theme_override_colors/font_color = Color(1, 0.8, 0, 1)
+text = "ROUND STARTS IN 5..."
+horizontal_alignment = 1
+
 [node name="AmmoContainer" type="MarginContainer" parent="."]
 layout_mode = 1
 anchors_preset = 3
@@ -64,3 +71,17 @@ theme_override_colors/font_color = Color(1, 0.28, 0.28, 1)
 theme_override_font_sizes/font_size = 32
 text = "HP: 100"
 vertical_alignment = 2
+
+[node name="TopBar" type="HBoxContainer" parent="."]
+layout_mode = 1
+anchors_preset = 10
+anchor_right = 1.0
+offset_bottom = 50.0
+grow_horizontal = 2
+alignment = 1
+
+[node name="ScoreLabel" type="Label" parent="TopBar"]
+layout_mode = 2
+theme_override_font_sizes/font_size = 32
+text = "BLUE: 0  |  RED: 0"
+horizontal_alignment = 1

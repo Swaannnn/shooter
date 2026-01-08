@@ -6,6 +6,7 @@ signal died
 
 @export var max_health: int = 100
 var current_health: int = 0
+var last_attacker_id: int = -1
 
 func _ready():
 	current_health = max_health
@@ -15,8 +16,9 @@ func _ready():
 @rpc("any_peer", "call_local")
 func take_damage(amount: int):
 	# Only the owner of this character (Authority) processes the damage 
-	
 	if is_multiplayer_authority():
+		var sender = multiplayer.get_remote_sender_id()
+		last_attacker_id = sender
 		_apply_damage(amount)
 		rpc("_sync_health", current_health)
 

@@ -6,7 +6,7 @@
 [ext_resource type="PackedScene" uid="uid://tracer12345" path="res://Scenes/Effects/BulletTracer.tscn" id="4_tracer"]
 [ext_resource type="AudioStream" uid="uid://pistolsound1" path="res://Assets/Sounds/pistol.mp3" id="5_sound"]
 [ext_resource type="PackedScene" uid="uid://decalbullet123" path="res://Scenes/Effects/BulletDecal.tscn" id="6_decal"]
-[ext_resource type="AudioStream" uid="uid://reloadpistol1" path="res://test/reload_pistol.mp3" id="7_reload"]
+
 
 [node name="Pistol" type="Node3D" node_paths=PackedStringArray("raycast_node", "muzzle_point")]
 script = ExtResource("1_hhr6j")
@@ -18,7 +18,7 @@ muzzle_point = NodePath("PistolVisuals/GunContainer/MuzzlePoint")
 shoot_sound = ExtResource("5_sound")
 damage = 15
 fire_rate = 0.15
-reload_sound = ExtResource("7_reload")
+
 reload_time = 1.8
 recoil_amount = 3.0
 recoil_recovery = 5.0

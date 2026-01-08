@@ -58,11 +58,20 @@ func _perform_shoot() -> Vector3:
 				
 		# Dégâts via HealthComponent (Authority only)
 		if collider and is_multiplayer_authority():
-			var health_comp = collider.get_node_or_null("HealthComponent")
-			if health_comp:
-				health_comp.take_damage.rpc(damage)
-			elif collider.has_method("take_damage"):
-				collider.take_damage(damage)
+			# Friendly Fire Check
+			var shooter = _find_owner(self)
+			var is_teammate = false
+			if shooter and "team_id" in shooter and "team_id" in collider:
+				if shooter.team_id == collider.team_id and shooter != collider:
+					is_teammate = true
+					# print("Friendly Fire Ignored!")
+			
+			if not is_teammate:
+				var health_comp = collider.get_node_or_null("HealthComponent")
+				if health_comp:
+					health_comp.take_damage.rpc(damage)
+				elif collider.has_method("take_damage"):
+					collider.take_damage(damage)
 					
 		# print("Hit: " + collider.name)
 	else:

@@ -14,7 +14,10 @@ extends Control
 
 # Lobby Widgets
 @onready var code_button = $Panel/LobbyUI/CodeButton
-@onready var player_list = $Panel/LobbyUI/PlayerList
+@onready var blue_list = $Panel/LobbyUI/TeamColumns/BlueColumn/BlueList
+@onready var red_list = $Panel/LobbyUI/TeamColumns/RedColumn/RedList
+@onready var join_blue_btn = $Panel/LobbyUI/TeamColumns/BlueColumn/JoinBlueButton
+@onready var join_red_btn = $Panel/LobbyUI/TeamColumns/RedColumn/JoinRedButton
 @onready var start_button = $Panel/LobbyUI/StartButton
 @onready var leave_button = $Panel/LobbyUI/LeaveButton
 
@@ -34,16 +37,14 @@ func _ready():
 	if OS.has_feature("web"):
 		# Hide QUIT button on Web (Quitting browser is handled by browser)
 		# But LEAVE button (return to menu) should be VISIBLE.
-		if quit_game_button: quit_game_button.visible = false 
+		if quit_game_button: quit_game_button.visible = false
 		
 		# Allow leaving lobby
-		if leave_button: leave_button.visible = true 
+		if leave_button: leave_button.visible = true
 
 func _on_game_started():
 	print("Menu: Game Started! Hiding UI.")
 	hide() # Hide the entire MultiplayerMenu Control
-
-
 
 
 func _show_main_menu():
@@ -63,7 +64,6 @@ func _show_main_menu():
 func _show_lobby_ui():
 	main_menu.visible = false
 	lobby_ui.visible = true
-	if player_list: player_list.clear() # Safety check
 	_update_lobby_ui()
 
 # --- MAIN MENU ACTIONS ---
@@ -105,6 +105,25 @@ func _on_join_pressed():
 	code_button.text = "JOINING: " + code
 	start_button.visible = true # Everyone can start? Or logic handled by server?
 	_show_lobby_ui()
+
+# --- LOCAL ACTIONS ---
+func _on_host_local_pressed():
+	# Use current name
+	if name_input and name_input.text.strip_edges() != "":
+		NetworkManager.my_name = name_input.text.strip_edges()
+	
+	status_label.text = "Status: Hosting Local..."
+	NetworkManager.host_game_local()
+
+func _on_join_local_pressed():
+	# Use current name
+	if name_input and name_input.text.strip_edges() != "":
+		NetworkManager.my_name = name_input.text.strip_edges()
+		
+	status_label.text = "Status: Joining Local..."
+	# Connect to localhost
+	NetworkManager.join_game("ws://127.0.0.1:7777", "LOCAL")
+
 	
 func _on_quit_game_pressed():
 	get_tree().quit()
@@ -144,24 +163,51 @@ func _on_leave_pressed():
 	_show_main_menu()
 	status_label.text = "Status: Idle"
 
+func _on_join_blue_pressed():
+	NetworkManager.request_change_team.rpc(1)
+
+func _on_join_red_pressed():
+	NetworkManager.request_change_team.rpc(2)
+
 func _update_lobby_ui():
 	# Refresh Player List
-	if not player_list or not lobby_ui.visible: return
-	player_list.clear()
+	if not lobby_ui.visible: return
+	if blue_list: blue_list.clear()
+	if red_list: red_list.clear()
 	
 	# Use the Room-Specific List
 	var players = NetworkManager.players_in_room
 	var my_id = multiplayer.get_unique_id()
 	var am_i_host = false
 	
+	var blue_count = 0
+	var red_count = 0
+	
 	for id in players:
 		var info = players[id]
 		var txt = info.get("name", "Unknown")
+		var team = info.get("team", 1)
+		
 		if info.get("is_host", false):
-			txt += " [HOST]"
+			txt += " (HOST)"
 			if id == my_id: am_i_host = true
+		
+		# Add to list
+		if team == 1:
+			if blue_list: blue_list.add_item(txt)
+			blue_count += 1
+		else:
+			if red_list: red_list.add_item(txt)
+			red_count += 1
 			
-		player_list.add_item(txt)
+	# Update Button Texts
+	if join_blue_btn:
+		join_blue_btn.text = "JOIN BLUE (%d/5)" % blue_count
+		join_blue_btn.disabled = (blue_count >= 5)
+		
+	if join_red_btn:
+		join_red_btn.text = "JOIN RED (%d/5)" % red_count
+		join_red_btn.disabled = (red_count >= 5)
 
 	# Enable Start Button ONLY if Host
 	if start_button:

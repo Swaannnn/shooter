@@ -7,7 +7,7 @@ signal game_ended(winning_team)
 signal score_updated(team1_score, team2_score)
 signal timer_updated(time_left)
 
-enum GameState { WAITING, PRE_ROUND, IN_ROUND, ROUND_END, GAME_OVER }
+enum GameState {WAITING, PRE_ROUND, IN_ROUND, ROUND_END, GAME_OVER}
 
 # Config
 var max_score = 10
@@ -21,7 +21,7 @@ var round_timer = 0.0
 
 # Player Tracking
 # Dictionary: peer_id -> { "team": 1 or 2, "alive": bool, "name": "..." }
-var players_data = {} 
+var players_data = {}
 
 func _ready():
 	# Si on est sur le serveur, on gère la boucle
@@ -39,6 +39,11 @@ func register_player(id, name, team):
 		"deaths": 0
 	}
 	print("Player Registered: ", id, " Team: ", team)
+
+func get_player_team(id) -> int:
+	if id in players_data:
+		return players_data[id]["team"]
+	return 0
 
 func start_game():
 	team1_score = 0
@@ -113,26 +118,38 @@ func game_over(winner):
 	emit_signal("game_ended", winner)
 	rpc("sync_game_over", winner)
 
-func player_died(id):
+func player_died(id, killer_id = -1):
 	if id in players_data:
 		players_data[id]["alive"] = false
 		players_data[id]["deaths"] += 1
 		
-		# Trouver le tueur (si on a l'info, à faire plus tard via arguments)
-		# Pour l'instant on check juste la win condition
+		# Credit Killer
+		if killer_id != -1 and killer_id != id and killer_id in players_data:
+			players_data[killer_id]["kills"] += 1
+			print("Kill Credit: ", players_data[killer_id]["name"], " killed ", players_data[id]["name"])
 		check_round_win_condition()
+
+# --- SIGNALS ---
+signal round_timer_updated(time)
 
 func _process(delta):
 	# Gestion du Timer Serveur
 	if current_state == GameState.PRE_ROUND:
 		round_timer -= delta
+		
+		# Sync timer localement (et via RPC periodiquement si besoin, mais ici on le fait en continu pour l'host)
+		# Pour les clients, on devrait peut-être envoyer un RPC chaque seconde au lieu de chaque frame
+		# Mais faisons simple: Host update tout le monde via signal local (si local)
+		# Pour le réseau, on envoie un RPC timer ? Non, trop lourd.
+		# On envoie juste Start Time et chaque client décompte ? C'est mieux.
+		
+		emit_signal("round_timer_updated", round_timer)
+		
 		if round_timer <= 0:
 			current_state = GameState.IN_ROUND
-			rpc("sync_round_state", current_state, 0) # 0 means go!
-			
-	elif current_state == GameState.IN_ROUND:
-		# Logic de round (time limit ?)
-		pass
+			rpc("sync_round_state", current_state, 0)
+			emit_signal("round_timer_updated", 0)
+
 
 # --- RPCs for Clients ---
 
