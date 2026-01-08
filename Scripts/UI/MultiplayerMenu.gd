@@ -71,9 +71,9 @@ func _show_lobby_ui():
 func _on_host_pressed():
 	# Save Name
 	if name_input and name_input.text.strip_edges() != "":
-		NetworkManager.my_name = name_input.text.strip_edges()
+		NetworkManager.player_name = name_input.text.strip_edges()
 	else:
-		NetworkManager.my_name = "Player_" + str(randi() % 1000)
+		NetworkManager.player_name = "Player_" + str(randi() % 1000)
 
 	# "Host" now means "Create Private Room" on the Dedicated Server
 	status_label.text = "Status: Creating Room..."
@@ -86,9 +86,9 @@ func _on_host_pressed():
 func _on_join_pressed():
 	# Save Name
 	if name_input and name_input.text.strip_edges() != "":
-		NetworkManager.my_name = name_input.text.strip_edges()
+		NetworkManager.player_name = name_input.text.strip_edges()
 	else:
-		NetworkManager.my_name = "Player_" + str(randi() % 1000)
+		NetworkManager.player_name = "Player_" + str(randi() % 1000)
 
 	var code = join_input.text.strip_edges().to_upper()
 	if code == "":
@@ -110,7 +110,7 @@ func _on_join_pressed():
 func _on_host_local_pressed():
 	# Use current name
 	if name_input and name_input.text.strip_edges() != "":
-		NetworkManager.my_name = name_input.text.strip_edges()
+		NetworkManager.player_name = name_input.text.strip_edges()
 	
 	status_label.text = "Status: Hosting Local..."
 	NetworkManager.host_game_local()
@@ -118,7 +118,7 @@ func _on_host_local_pressed():
 func _on_join_local_pressed():
 	# Use current name
 	if name_input and name_input.text.strip_edges() != "":
-		NetworkManager.my_name = name_input.text.strip_edges()
+		NetworkManager.player_name = name_input.text.strip_edges()
 		
 	status_label.text = "Status: Joining Local..."
 	# Connect to localhost

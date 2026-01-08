@@ -18,7 +18,7 @@ config/icon="res://icon.svg"
 [autoload]
 
 NetworkManager="*res://Scripts/Network/NetworkManager.gd"
-GameManager="*res://_Core/GameManager.gd"
+GameManager="*res://Scripts/GameManager.gd"
 
 [display]
 

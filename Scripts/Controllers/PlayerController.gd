@@ -17,6 +17,8 @@ var shop_instance = null
 var pause_instance = null
 var scoreboard_instance = null
 
+var name_label: Label3D = null # Visual Name Tag
+
 
 # Audio Resources
 var sound_jump = preload("res://Assets/Sounds/jump.mp3")
@@ -46,6 +48,8 @@ var audio_slide: AudioStreamPlayer = null
 var current_weapon = null
 var is_shop_open = false
 var is_paused = false
+var can_shop = true
+var spawn_position = Vector3.ZERO
 
 # Movement State
 var is_crouching = false
@@ -76,6 +80,9 @@ var previous_position: Vector3 = Vector3.ZERO
 
 func _ready():
 	# 1. SETUP COMMON (Visuals, Audio, Components) ============
+	# Setup Name Label
+	_setup_name_label()
+	
 	# Camera Find (Needed for attachment of weapons for everyone)
 	camera = _find_camera_node(self)
 	
@@ -123,13 +130,11 @@ func _ready():
 	# 2. AUTHORITY CHECKS (Input, Physics, UI) =================
 	
 	# Check Team (Simple Alternating Assigment based on ID parity for now)
-	var team_id = 1
+	# Default fallback
 	if id % 2 == 0:
 		team_id = 2
-	
-	# Register to GameManager (Deprecated? Logic moved to NetworkManager spawn)
-	# But we keep this for robust check or late join?
-	# NetworkManager._spawn_arena registers everyone on Server.
+	else:
+		team_id = 1
 	
 	# Fetch Team from GameManager (Server Side Source of Truth)
 	if multiplayer.is_server():
@@ -139,6 +144,11 @@ func _ready():
 		
 		# Sync to clients
 		rpc("sync_team_data", team_id)
+	else:
+		# Client: Try to fetch if available
+		var stored_team = GameManager.get_player_team(id)
+		if stored_team != 0:
+			team_id = stored_team
 	
 	# Initial Color Apply (Might be default Blue, upgraded later by sync)
 	_apply_team_color(team_id)
@@ -163,14 +173,22 @@ func _ready():
 	# Authority init
 	sync_position = global_position
 	sync_rotation = global_rotation
+	spawn_position = global_position # Store initial spawn
+	
 	if camera:
 		sync_cam_rotation = camera.rotation.x
 		camera.current = true # Ensure we look through our eyes
 
 	GameManager.game_started.connect(_on_respawn_signal) # Hook for respawn
-
-
+	GameManager.players_updated.connect(_on_players_data_updated) # Hook for team sync
+	# Shop Control Hooks
+	GameManager.round_started.connect(_on_round_started)
+	GameManager.round_active.connect(_on_round_active) # Use this to close shop
+	
 	Input.set_mouse_mode(Input.MOUSE_MODE_CAPTURED)
+
+
+
 	
 	# Load UI scenes locally for the player
 	hud_scene = load("res://Scenes/UI/HUD.tscn")
@@ -279,125 +297,22 @@ func _ready():
 	_equip_weapon_local("res://Scenes/Weapons/Pistol.tscn")
 	
 	# Connexion HealthComponent
-	var health_comp = get_node_or_null("HealthComponent")
-	if health_comp:
+	# 7. Init Spawn Position
+	spawn_position = global_position
+	
+	# 8. Start Health Component
+	if has_node("HealthComponent"):
+		var health_comp = $HealthComponent
 		health_comp.health_changed.connect(_on_health_changed)
 		health_comp.died.connect(_on_died)
-		# Update UI init
-		_on_health_changed(0, health_comp.current_health)
+		var max_hp = health_comp.max_health
+		if hud_instance and hud_instance.has_method("update_health"):
+			hud_instance.update_health(max_hp)
+	
+	print("Player Ready: ", name, " Team: ", team_id, " Auth: ", is_multiplayer_authority())
 
-func _on_died():
-	if is_dead: return
-	is_dead = true
-	print("Player Died! Switching to Spectator Mode.")
-	
-	# Tell Server we died
-	if is_multiplayer_authority():
-		var killer_id = -1
-		if has_node("HealthComponent"):
-			killer_id = $HealthComponent.last_attacker_id
-		rpc("notify_death", str(name).to_int(), killer_id)
-	
-	# Désactiver les collisions
-	if collision_shape: collision_shape.disabled = true
-	
-	# Cacher l'arme et les bras
-	if current_weapon:
-		current_weapon.visible = false
-		
-	# Cacher le corps du joueur
-	if has_node("CollisionShape3D/BodyMesh"):
-		$CollisionShape3D/BodyMesh.visible = false
-	
-	# Switch to Spectator
-	_enable_spectator_mode()
+# Shop Control Logic
 
-@rpc("call_local", "reliable")
-func sync_team_data(new_team):
-	team_id = new_team
-	_apply_team_color(team_id)
-	
-@rpc("any_peer")
-func notify_death(id, killer_id = -1):
-	if multiplayer.is_server():
-		GameManager.player_died(id, killer_id)
-
-@rpc("any_peer")
-func register_request(pid, pname, pteam):
-	if multiplayer.is_server():
-		GameManager.register_player(pid, pname, pteam)
-
-func _start_spectator():
-	_enable_spectator_mode()
-
-var spectating_target = null
-var spectating_index = 0
-
-func _enable_spectator_mode():
-	var all_players = get_tree().get_nodes_in_group("player")
-	var candidates = []
-	for p in all_players:
-		if p != self and not p.is_dead:
-			candidates.append(p)
-			
-	if candidates.size() > 0:
-		spectating_target = candidates[0]
-	else:
-		spectating_target = null
-
-func _process_spectator(delta):
-	# Spectator Controls
-	if Input.is_action_just_pressed("fire"):
-		_cycle_spectator_target(1)
-	elif Input.is_action_just_pressed("aim"): # Right Click
-		_cycle_spectator_target(-1)
-		
-	# If target invalid, cycle
-	if spectating_target and (not is_instance_valid(spectating_target) or spectating_target.is_dead):
-		_cycle_spectator_target(1)
-		
-	# Match Camera
-	if spectating_target and is_instance_valid(spectating_target) and spectating_target.camera:
-		camera.global_transform = spectating_target.camera.global_transform
-
-func _cycle_spectator_target(dir):
-	var all_players = get_tree().get_nodes_in_group("player")
-	var candidates = []
-	for p in all_players:
-		if p != self and not p.is_dead:
-			candidates.append(p)
-	
-	if candidates.size() == 0:
-		spectating_target = null
-		return
-		
-	spectating_index = (spectating_index + dir) % candidates.size()
-	spectating_target = candidates[spectating_index]
-
-func _on_respawn_signal():
-	# Reset
-	is_dead = false
-	if collision_shape: collision_shape.disabled = false
-	if current_weapon: current_weapon.visible = true
-	
-	# Restore Body Visibility (Only for others, or if we want to see legs etc)
-	# Logic: If I am authority, I usually hide my body. If I am remote, I show it.
-	if has_node("CollisionShape3D/BodyMesh"):
-		# If we are NOT authority, we definitely show it.
-		# If we ARE authority, we keep it hidden (as per _ready logic)
-		if not is_multiplayer_authority():
-			$CollisionShape3D/BodyMesh.visible = true
-		else:
-			$CollisionShape3D/BodyMesh.visible = false # Or true if we support visible body
-	
-	# Random Spawn (TODO: Use real spawn points)
-	global_position = Vector3(randf_range(-5, 5), 5, randf_range(-5, 5))
-	velocity = Vector3.ZERO
-	
-	var health_comp = get_node_or_null("HealthComponent")
-	if health_comp: health_comp.reset_health()
-	
-	camera.current = true
 
 func _apply_team_color(t_id):
 	if has_node("CollisionShape3D/BodyMesh"):
@@ -596,7 +511,8 @@ func _unhandled_input(event):
 			pass # Géré dans _process ou via une action, ici on utilise is_action_just_pressed dans _physics_process ou ici
 			
 	if event is InputEventKey and event.pressed and event.keycode == KEY_B:
-		_toggle_shop()
+		if can_shop or is_shop_open: # Allow closing even if can_shop is false
+			_toggle_shop()
 		
 	if is_shop_open or is_paused: return # Pas de mouvement de caméra si boutique/pause ouverte
 	
@@ -629,6 +545,8 @@ func _process(delta):
 		_process_spectator(delta)
 		return
 
+	# Update Name Tag (Text & Color)
+	_update_name_label()
 	
 	# Visual Update for Stance (Local AND Remote)
 	# This ensures remotes see the stance change via sync_stance
@@ -736,9 +654,16 @@ func _physics_process(delta):
 			if audio_crouch: audio_crouch.play()
 
 	# --- Movement Physics ---
+	# Safety Net for Falling into Void
+	if global_position.y < -30.0:
+		velocity = Vector3.ZERO
+		if spawn_position != Vector3.ZERO:
+			global_position = spawn_position
+		else:
+			global_position = Vector3(0, 5, 0)
+			
 	if is_dead:
-		velocity.x = 0
-		velocity.z = 0
+		velocity = Vector3.ZERO # Complete freeze
 		move_and_slide()
 		return
 
@@ -889,3 +814,223 @@ func _update_stance_visuals(stance: int, delta: float):
 			var center_offset = - (height_diff / 2.0)
 			
 			collision_shape.position.y = center_offset
+
+# --- RESTORED FUNCTIONS ---
+
+func _on_round_started():
+	can_shop = true
+	if hud_instance and hud_instance.has_method("show_round_start"):
+		pass
+
+func _on_round_active():
+	can_shop = false
+	if is_shop_open:
+		_toggle_shop() # Close if open
+
+func _on_died():
+	if is_dead: return
+	is_dead = true
+	print("Player Died! Switching to Spectator Mode.")
+	
+	# Tell Server we died
+	if is_multiplayer_authority():
+		var killer_id = -1
+		var weapon_name = "Unknown"
+		
+		# Getting killer algorithm needs improvement in HealthComponent to store weapon
+		if has_node("HealthComponent"):
+			killer_id = $HealthComponent.last_attacker_id
+		
+		# Robust Death Reporting: Call GameManager Global RPC to avoid missing node errors
+		GameManager.report_player_death.rpc(str(name).to_int(), killer_id, weapon_name)
+	
+	# Désactiver les collisions
+	if collision_shape: collision_shape.disabled = true
+	
+	# Cacher l'arme et les bras
+	if current_weapon:
+		current_weapon.visible = false
+		
+	# Cacher le corps du joueur
+	if has_node("CollisionShape3D/BodyMesh"):
+		$CollisionShape3D/BodyMesh.visible = false
+	
+	# Switch to Spectator
+	# Switch to Spectator
+	_enable_spectator_mode()
+	
+	# CRITICAL FIX: Stop Physics completely to prevent falling through map due to no collision
+	velocity = Vector3.ZERO
+	set_physics_process(false)
+
+@rpc("call_local", "reliable")
+func sync_team_data(new_team):
+	team_id = new_team
+	_apply_team_color(team_id)
+	
+@rpc("any_peer", "reliable")
+func notify_death(id, killer_id = -1, weapon_name = "Weapon"):
+	if multiplayer.is_server():
+		GameManager.player_died(id, killer_id, weapon_name)
+
+@rpc("any_peer")
+func register_request(pid, pname, pteam):
+	if multiplayer.is_server():
+		GameManager.register_player(pid, pname, pteam)
+
+func _start_spectator():
+	_enable_spectator_mode()
+
+var spectating_target = null
+var spectating_index = 0
+
+func _enable_spectator_mode():
+	var all_players = get_tree().get_nodes_in_group("player")
+	var candidates = []
+	for p in all_players:
+		if p != self and not p.is_dead:
+			candidates.append(p)
+			
+	if candidates.size() > 0:
+		spectating_target = candidates[0]
+	else:
+		spectating_target = null
+
+func _process_spectator(delta):
+	# Spectator Controls
+	if Input.is_action_just_pressed("fire"):
+		_cycle_spectator_target(1)
+	elif Input.is_action_just_pressed("aim"): # Right Click
+		_cycle_spectator_target(-1)
+		
+	# If target invalid, cycle
+	if spectating_target and (not is_instance_valid(spectating_target) or spectating_target.is_dead):
+		_cycle_spectator_target(1)
+		
+	# Match Camera
+	if spectating_target and is_instance_valid(spectating_target) and spectating_target.camera:
+		camera.global_transform = spectating_target.camera.global_transform
+
+func _cycle_spectator_target(dir):
+	var all_players = get_tree().get_nodes_in_group("player")
+	var candidates = []
+	for p in all_players:
+		if p != self and not p.is_dead:
+			candidates.append(p)
+	
+	if candidates.size() == 0:
+		spectating_target = null
+		return
+		
+	spectating_index = (spectating_index + dir) % candidates.size()
+	spectating_target = candidates[spectating_index]
+
+func _on_respawn_signal():
+	# Reset
+	is_dead = false
+	if collision_shape: collision_shape.disabled = false
+	if current_weapon: current_weapon.visible = true
+	
+	# Restore Body Visibility
+	if has_node("CollisionShape3D/BodyMesh"):
+		if not is_multiplayer_authority():
+			$CollisionShape3D/BodyMesh.visible = true
+		else:
+			$CollisionShape3D/BodyMesh.visible = false 
+	
+	# Respawn at original spawn point
+	global_position = spawn_position
+	velocity = Vector3.ZERO
+	
+	var health_comp = get_node_or_null("HealthComponent")
+	if health_comp: health_comp.reset_health()
+	
+	camera.current = true
+	
+	# CRITICAL FIX: Restart Physics
+	set_physics_process(true)
+
+func _setup_name_label():
+	if name_label: return
+	name_label = Label3D.new()
+	name_label.billboard = BaseMaterial3D.BILLBOARD_ENABLED
+	name_label.position.y = 2.3
+	name_label.pixel_size = 0.005
+	name_label.font_size = 64
+	name_label.outline_render_priority = 0
+	name_label.modulate = Color.WHITE
+	name_label.text = "Loading..."
+	add_child(name_label)
+
+func _update_name_label():
+	if not name_label: return
+	
+	# Hide if dead
+	if is_dead:
+		name_label.visible = false
+		return
+	
+	# 1. Update Name (Lazy Load)
+	var pid = str(name).to_int()
+	if GameManager.players_data.has(pid):
+		name_label.text = GameManager.players_data[pid]["name"]
+	else:
+		name_label.text = "P" + str(pid)
+		
+	# 2. Update Visibility/Color based on relation to Local Player
+	if is_multiplayer_authority():
+		name_label.visible = false # Hide own name
+		return
+		
+	var local_id = multiplayer.get_unique_id()
+	var local_team = GameManager.get_player_team(local_id)
+	
+	# If logic is incomplete, hide to avoid confusion
+	if local_team == 0 or team_id == 0:
+		name_label.visible = false
+		return
+		
+	if local_team == team_id:
+		# Ally -> White
+		name_label.modulate = Color.WHITE
+		name_label.visible = true
+	else:
+		# Enemy -> Hidden
+		name_label.visible = false
+
+func _on_players_data_updated():
+	# Re-fetch team ID
+	var id = str(name).to_int()
+	var stored_team = GameManager.get_player_team(id)
+	if stored_team != 0:
+		team_id = stored_team
+		_apply_team_color(team_id)
+		
+		# Check Alive Status
+		if GameManager.players_data.has(id):
+			var alive = GameManager.players_data[id]["alive"]
+			# DEBUG TRACE
+			print("Visual Sync for ", name, " (ID: ", id, ") -> Alive: ", alive)
+			
+			if not alive:
+				# Force Hide Logic (Hide ROOT to ensure everything vanishes)
+				visible = false
+				is_dead = true
+				if collision_shape:
+					collision_shape.disabled = true
+			else:
+				# Force Show
+				if not is_multiplayer_authority():
+					visible = true
+					if has_node("CollisionShape3D/BodyMesh"):
+						$CollisionShape3D/BodyMesh.visible = true
+				else:
+					# Local player: Root visible, but BodyMesh hidden
+					visible = true
+					if has_node("CollisionShape3D/BodyMesh"):
+						$CollisionShape3D/BodyMesh.visible = false
+						
+				if current_weapon:
+					current_weapon.visible = true
+		
+		_update_name_label()

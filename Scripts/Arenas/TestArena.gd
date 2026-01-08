@@ -21,10 +21,17 @@ func _ready():
 		# Check if we are a dedicated server (Headless or --server)
 		var is_dedicated = DisplayServer.get_name() == "headless" or "--server" in OS.get_cmdline_args()
 		
+		# INITIAL GAME START
+		# Wait a bit for initialization then start the loop
+		await get_tree().create_timer(1.0).timeout
+		GameManager.start_game()
+		
 		if not is_dedicated:
 			# Only spawn a host player if we are a CLIENT-HOST (Listen Server)
 			# Dedicated servers don't need a physical player body
 			print("Arena: Server Spawning Host (1)")
+			# Auto-register host
+			GameManager.register_player(1, NetworkManager.player_name if NetworkManager.player_name != "" else "Host", 1) # Force Team 1 for Host
 			multiplayer_spawner.spawn(1)
 		else:
 			print("Arena: Dedicated Server detected. Skipping Host (1) spawn.")
@@ -53,6 +60,18 @@ func notify_level_loaded():
 		print("Arena: Player %d already exists. Skipping." % sender_id)
 		return
 		
+	# Register if not exists (Late join)
+	if sender_id not in GameManager.players_data:
+		# Auto assign team based on count
+		var t1 = 0
+		var t2 = 0
+		for pid in GameManager.players_data:
+			if GameManager.players_data[pid]["team"] == 1: t1 += 1
+			else: t2 += 1
+		
+		var new_team = 1 if t1 <= t2 else 2
+		GameManager.register_player(sender_id, "Player " + str(sender_id), new_team)
+		
 	# Spawn the player for this specific peer
 	print("Arena: Spawning Player Character for %d" % sender_id)
 	multiplayer_spawner.spawn(sender_id)
@@ -66,6 +85,10 @@ func _on_peer_disconnected(id: int):
 	print("Arena: Removing player for peer ", id)
 	if players_container.has_node(str(id)):
 		players_container.get_node(str(id)).queue_free()
+	
+	# Update GameManager
+	if id in GameManager.players_data:
+		GameManager.players_data.erase(id)
 
 # This function is called by the spawner on all clients
 # data is the argument passed to spawn()
@@ -75,11 +98,26 @@ func _spawn_player(id: int) -> Node:
 	# Recursive authority because HealthComponent need to be owned by player too
 	_set_authority_recursive(player, id)
 	
-	# Find spawn point
+	# Find spawn point based on Team
+	var team_id = 1
+	if id in GameManager.players_data:
+		team_id = GameManager.players_data[id]["team"]
+	
+	# Update Player Team Prop
+	player.team_id = team_id
+	
 	var spawn_transform = Transform3D()
-	if spawn_points.get_child_count() > 0:
-		var index = id % spawn_points.get_child_count()
-		spawn_transform = spawn_points.get_child(index).global_transform
+	var points = []
+	
+	# Collect valid points
+	for child in spawn_points.get_children():
+		if "team_id" in child and child.team_id == team_id:
+			points.append(child)
+			
+	if points.size() > 0:
+		# Pick one based on modulo ID to have distinct spawns
+		var index = id % points.size()
+		spawn_transform = points[index].global_transform
 	else:
 		spawn_transform.origin = Vector3(0, 2, 0) # Fallback
 		

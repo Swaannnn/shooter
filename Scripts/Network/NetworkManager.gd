@@ -4,6 +4,7 @@ const DEFAULT_PORT = 7777
 const MAX_CLIENTS = 100
 
 var peer: WebSocketMultiplayerPeer
+var player_name: String = "Guest"
 
 signal player_list_updated
 signal game_started
@@ -11,7 +12,7 @@ signal game_ended # Checkpoint for UI to re-appear
 signal join_room_success(room_code: String)
 
 # Local Player Info
-var my_name = "Player"
+
 var current_room = ""
 
 # Server State: { peer_id: { "name": "...", "room": "ABCD" } }
@@ -169,7 +170,7 @@ func host_game_local(room_code = "LOCAL"):
 	
 	# Manually register self in players_on_server
 	players_on_server[1] = {
-		"name": my_name,
+		"name": player_name,
 		"room": room_code,
 		"is_host": true
 	}
@@ -297,7 +298,7 @@ func send_join_success(room_code: String):
 func _on_connected_to_server():
 	print("✅ Connected! Sending Registration...")
 	# Once connected, we MUST tell the server which room we want
-	register_player.rpc_id(1, my_name, current_room)
+	register_player.rpc_id(1, player_name, current_room)
 
 func _on_peer_connected(id):
 	print("New Peer Connected: ", id)

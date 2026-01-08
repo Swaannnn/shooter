@@ -5,7 +5,7 @@ extends StaticBody3D
 
 func _ready():
 	GameManager.round_started.connect(_on_round_started)
-	# Also connect to game started to ensure reset on game loop
+	GameManager.round_active.connect(_on_round_active)
 	GameManager.game_started.connect(_on_round_started)
 	
 	# Initial Setup
@@ -26,10 +26,9 @@ func _on_round_started():
 	# Enable Barrier
 	visible = true
 	set_collision_layer_value(1, true)
-	print("Barrier Enabled for 5s")
-	
-	await get_tree().create_timer(5.0).timeout
-	
+	print("Barrier Enabled")
+
+func _on_round_active():
 	# Disable Barrier
 	visible = false
 	set_collision_layer_value(1, false)

@@ -69,9 +69,9 @@ func _perform_shoot() -> Vector3:
 			if not is_teammate:
 				var health_comp = collider.get_node_or_null("HealthComponent")
 				if health_comp:
-					health_comp.take_damage.rpc(damage)
+					health_comp.take_damage.rpc(damage, multiplayer.get_unique_id())
 				elif collider.has_method("take_damage"):
-					collider.take_damage(damage)
+					collider.take_damage(damage) # Legacy/Dummy support (assumed 1 arg)
 					
 		# print("Hit: " + collider.name)
 	else:

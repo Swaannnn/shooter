@@ -1,6 +1,6 @@
 [gd_scene load_steps=2 format=3 uid="uid://c8j2x4k5l6m7n"]
 
-[ext_resource type="Script" path="res://Scripts/UI/HUD.gd" id="1_hud"]
+[ext_resource type="Script" uid="uid://btgi5wfodj4dd" path="res://Scripts/UI/HUD.gd" id="1_hud"]
 
 [node name="HUD" type="Control"]
 layout_mode = 3
@@ -17,6 +17,10 @@ layout_mode = 1
 anchors_preset = 15
 anchor_right = 1.0
 anchor_bottom = 1.0
+offset_left = 1.0
+offset_top = 3.0
+offset_right = 1.0
+offset_bottom = 3.0
 grow_horizontal = 2
 grow_vertical = 2
 mouse_filter = 2
@@ -26,10 +30,19 @@ custom_minimum_size = Vector2(4, 4)
 layout_mode = 2
 mouse_filter = 2
 
-[node name="RoundLabel" type="Label" parent="CenterContainer"]
+[node name="TextContainer" type="CenterContainer" parent="."]
+layout_mode = 1
+anchors_preset = 10
+anchor_right = 1.0
+offset_top = 103.0
+offset_bottom = 245.0
+grow_horizontal = 2
+mouse_filter = 2
+
+[node name="RoundLabel" type="Label" parent="TextContainer"]
 layout_mode = 2
-theme_override_font_sizes/font_size = 48
 theme_override_colors/font_color = Color(1, 0.8, 0, 1)
+theme_override_font_sizes/font_size = 48
 text = "ROUND STARTS IN 5..."
 horizontal_alignment = 1
 
@@ -83,5 +96,26 @@ alignment = 1
 [node name="ScoreLabel" type="Label" parent="TopBar"]
 layout_mode = 2
 theme_override_font_sizes/font_size = 32
-text = "BLUE: 0  |  RED: 0"
+text = "BLUE : 0   |    RED : 0"
 horizontal_alignment = 1
+
+[node name="TextShopContainer" type="CenterContainer" parent="."]
+layout_mode = 1
+anchors_preset = 12
+anchor_top = 1.0
+anchor_right = 1.0
+anchor_bottom = 1.0
+offset_left = 1.0
+offset_top = -271.0
+offset_right = 1.0
+offset_bottom = -71.0
+grow_horizontal = 2
+grow_vertical = 0
+mouse_filter = 2
+
+[node name="KillfeedContainer" type="VBoxContainer" parent="."]
+layout_mode = 1
+offset_left = 21.0
+offset_top = 66.0
+offset_right = 401.0
+offset_bottom = 266.0
