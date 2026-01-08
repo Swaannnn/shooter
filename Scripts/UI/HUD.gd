@@ -7,6 +7,8 @@ extends Control
 @onready var score_label = $TopBar/ScoreLabel
 @onready var round_label = $TextContainer/RoundLabel
 var shop_hint = null # New Label "Press B for Shop"
+@onready var result_label = $RoundResultContainer/ResultLabel
+@onready var result_container = $RoundResultContainer
 
 # Dynamic creation of Killfeed Container if not present
 var killfeed_container = null
@@ -16,6 +18,9 @@ func _ready():
 	ammo_label.visible = false
 	if round_label:
 		round_label.text = ""
+	
+	if result_container:
+		result_container.visible = false
 		
 	# Killfeed Setup
 	if has_node("KillfeedContainer"):
@@ -35,6 +40,8 @@ func _ready():
 	GameManager.score_updated.connect(update_scores)
 	GameManager.round_started.connect(_on_round_started)
 	GameManager.round_active.connect(_on_round_active)
+	GameManager.round_active.connect(_on_round_active)
+	GameManager.round_ended.connect(_on_round_ended)
 	GameManager.kill_feed.connect(_on_kill_feed)
 
 func update_ammo(current, max_ammo):
@@ -47,7 +54,11 @@ func update_ammo(current, max_ammo):
 
 func _on_round_started():
 	if round_label: round_label.visible = true
+	# Hide Result
+	if result_container: result_container.visible = false
+	
 	# Show Shop Hint
+	if shop_hint: shop_hint.visible = true
 	if not has_node("ShopHintLabel"):
 		# Create it if missing (or use existing if created in scene)
 		pass 
@@ -59,6 +70,8 @@ func _on_round_active():
 		round_label.text = "FIGHT !"
 		await get_tree().create_timer(1.0).timeout
 		round_label.visible = false
+	
+	if shop_hint: shop_hint.visible = false
 
 func _on_round_timer_updated(time_left):
 	if round_label:
@@ -82,6 +95,24 @@ func _on_round_timer_updated(time_left):
 			if shop_hint: shop_hint.visible = true
 		else:
 			if shop_hint: shop_hint.visible = false
+
+func _on_round_ended(winning_team):
+	if not result_label or not result_container: return
+	
+	var my_id = multiplayer.get_unique_id()
+	var my_team = GameManager.get_player_team(my_id)
+	
+	if winning_team == 0:
+		result_label.text = "DRAW"
+		result_label.modulate = Color.WHITE
+	elif winning_team == my_team:
+		result_label.text = "ROUND WON"
+		result_label.modulate = Color.GREEN
+	else:
+		result_label.text = "ROUND LOST"
+		result_label.modulate = Color.RED
+		
+	result_container.visible = true
 
 func update_health(amount):
 	if health_label:

@@ -851,7 +851,10 @@ func _on_died():
 	if current_weapon:
 		current_weapon.visible = false
 		
-	# Cacher le corps du joueur
+	# Cacher le corps du joueur (GLOBAL HIDE)
+	# On cache tout le player pour éviter les glitchs visuels
+	visible = false
+	
 	if has_node("CollisionShape3D/BodyMesh"):
 		$CollisionShape3D/BodyMesh.visible = false
 	
@@ -930,6 +933,9 @@ func _on_respawn_signal():
 	is_dead = false
 	if collision_shape: collision_shape.disabled = false
 	if current_weapon: current_weapon.visible = true
+	
+	# Restore Root Visibility
+	visible = true
 	
 	# Restore Body Visibility
 	if has_node("CollisionShape3D/BodyMesh"):
