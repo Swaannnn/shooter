@@ -47,10 +47,15 @@ horizontal_alignment = 1
 layout_mode = 2
 theme_override_constants/separation = 20
 
-[node name="OverrideInput" type="LineEdit" parent="Panel/MainMenu"]
+[node name="NameInput" type="LineEdit" parent="Panel/MainMenu"]
 layout_mode = 2
-placeholder_text = "Wait... (Optional: Ngrok/Tunnel URL)"
+placeholder_text = "ENTER PLAYER NAME"
 alignment = 1
+max_length = 16
+
+[node name="HSeparator_Name" type="HSeparator" parent="Panel/MainMenu"]
+layout_mode = 2
+theme_override_constants/separation = 20
 
 [node name="HostButton" type="Button" parent="Panel/MainMenu"]
 layout_mode = 2

@@ -10,12 +10,10 @@ var pause_scene = null
 
 # Audio Resources
 var sound_jump = preload("res://Assets/Sounds/jump.mp3")
-
 var sound_run = preload("res://Assets/Sounds/run.mp3")
 var sound_walk = preload("res://Assets/Sounds/walk.mp3")
-# Nouveaux sons
-var sound_crouch = preload("res://test/crouch.mp3")
-var sound_slide = preload("res://test/slide.mp3")
+var sound_crouch = preload("res://Assets/Sounds/crouch.mp3")
+var sound_slide = preload("res://Assets/Sounds/slide.mp3")
 
 # Audio Players
 var audio_jump: AudioStreamPlayer = null
@@ -158,27 +156,27 @@ func _ready():
 	# Setup Audio
 	audio_jump = AudioStreamPlayer.new()
 	audio_jump.stream = sound_jump
-	audio_jump.bus = "SFX"
+	audio_jump.bus = "Master"
 	add_child(audio_jump)
 	
 	audio_run = AudioStreamPlayer.new()
 	audio_run.stream = sound_run
-	audio_run.bus = "SFX"
+	audio_run.bus = "Master"
 	add_child(audio_run)
 	
 	audio_walk = AudioStreamPlayer.new()
 	audio_walk.stream = sound_walk
-	audio_walk.bus = "SFX"
+	audio_walk.bus = "Master"
 	add_child(audio_walk)
 	
 	audio_crouch = AudioStreamPlayer.new()
 	audio_crouch.stream = sound_crouch
-	audio_crouch.bus = "SFX"
+	audio_crouch.bus = "Master"
 	add_child(audio_crouch)
 	
 	audio_slide = AudioStreamPlayer.new()
 	audio_slide.stream = sound_slide
-	audio_slide.bus = "SFX"
+	audio_slide.bus = "Master"
 	add_child(audio_slide)
 	
 	# Recherche plus robuste de la caméra (récursive)
@@ -383,6 +381,11 @@ func _on_ammo_changed(amount, reserve = 0):
 func rpc_fire_weapon(x, y, z):
 	if is_multiplayer_authority(): return
 	
+	# ISOLATION CHECK: Ignore shots from other lobbies
+	var sender_id = multiplayer.get_remote_sender_id()
+	if not NetworkManager.is_player_in_my_room(sender_id):
+		return
+	
 	# Debug pour vérifier que le RPC arrive
 	# print("RPC Remote Fire received on ", name, " from ", multiplayer.get_remote_sender_id())
 	
@@ -462,6 +465,9 @@ func _unhandled_input(event):
 		# NOTE: On applique pas tout de suite à la caméra, ce sera fait dans _physics_process
 
 func _process(delta):
+	# Safety Check: If peer is disconnected, stop processing network logic
+	if not multiplayer.has_multiplayer_peer(): return
+
 	# Interpolation for remote players
 	if not is_multiplayer_authority():
 		# Smooth Movement

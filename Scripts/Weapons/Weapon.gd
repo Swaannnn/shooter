@@ -187,7 +187,7 @@ func play_sound(stream: AudioStream, pitch_min: float = 1.0, pitch_max: float = 
 	
 	var player = AudioStreamPlayer3D.new()
 	add_child(player)
-	player.bus = "SFX"
+	player.bus = "Master"
 	player.stream = stream
 	player.pitch_scale = randf_range(pitch_min, pitch_max)
 	

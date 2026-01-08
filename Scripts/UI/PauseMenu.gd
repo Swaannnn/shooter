@@ -23,7 +23,12 @@ func _ready():
 	# Menu Buttons
 	$MainContainer/VBoxContainer/ResumeButton.pressed.connect(_on_resume_pressed)
 	$MainContainer/VBoxContainer/SettingsButton.pressed.connect(_on_settings_pressed)
-	$MainContainer/VBoxContainer/QuitButton.pressed.connect(_on_quit_pressed)
+	
+	var quit_btn = $MainContainer/VBoxContainer/QuitButton
+	quit_btn.pressed.connect(_on_quit_pressed)
+	
+	# Unified Text for clearer UX
+	quit_btn.text = "Return to Menu"
 	
 	# Settings Buttons
 	$SettingsContainer/VBoxContainer/BackButton.pressed.connect(_on_back_pressed)
@@ -34,7 +39,7 @@ func _ready():
 	sensitivity_slider.step = 0.1
 	sensitivity_slider.value_changed.connect(_on_sensitivity_changed)
 	
-	sensitivity_slider.value_changed.connect(_on_sensitivity_changed)
+
 	
 	if volume_slider:
 		volume_slider.min_value = 0.0

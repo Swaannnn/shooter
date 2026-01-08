@@ -5,6 +5,7 @@ extends Control
 @onready var lobby_ui = $Panel/LobbyUI
 
 # Main Menu Widgets
+@onready var name_input = $Panel/MainMenu/NameInput
 @onready var join_input = $Panel/MainMenu/JoinInput
 @onready var status_label = $Panel/MainMenu/StatusLabel
 @onready var host_button = $Panel/MainMenu/HostButton
@@ -15,11 +16,14 @@ extends Control
 @onready var code_button = $Panel/LobbyUI/CodeButton
 @onready var player_list = $Panel/LobbyUI/PlayerList
 @onready var start_button = $Panel/LobbyUI/StartButton
+@onready var leave_button = $Panel/LobbyUI/LeaveButton
 
 func _ready():
 	_show_main_menu()
-	NetworkManager.join_code_ready.connect(_on_join_code_ready)
+	NetworkManager.join_room_success.connect(_on_join_room_success)
 	NetworkManager.player_list_updated.connect(_update_lobby_ui)
+	NetworkManager.game_started.connect(_on_game_started)
+	NetworkManager.game_ended.connect(_show_main_menu)
 	
 	if quit_game_button:
 		quit_game_button.pressed.connect(_on_quit_game_pressed)
@@ -28,18 +32,29 @@ func _ready():
 	if start_button: start_button.disabled = true
 	
 	if OS.has_feature("web"):
-		host_button.disabled = true
-		host_button.tooltip_text = "Hosting is not available on Web."
-		status_label.text = "Web Client Mode (Hosting Disabled)"
+		# Hide QUIT button on Web (Quitting browser is handled by browser)
+		# But LEAVE button (return to menu) should be VISIBLE.
+		if quit_game_button: quit_game_button.visible = false 
+		
+		# Allow leaving lobby
+		if leave_button: leave_button.visible = true 
+
+func _on_game_started():
+	print("Menu: Game Started! Hiding UI.")
+	hide() # Hide the entire MultiplayerMenu Control
+
+
+
 
 func _show_main_menu():
+	show() # CRITICAL: Make sure the root Control is visible again!
 	main_menu.visible = true
 	lobby_ui.visible = false
 	status_label.text = "Status: Idle"
 	
 	if OS.has_feature("web"):
-		host_button.disabled = true
-		status_label.text = "Web Client Mode (Host Disabled)"
+		# Web users can now Create Rooms (Virtual Host)
+		pass
 	else:
 		host_button.disabled = false
 		
@@ -54,6 +69,12 @@ func _show_lobby_ui():
 # --- MAIN MENU ACTIONS ---
 
 func _on_host_pressed():
+	# Save Name
+	if name_input and name_input.text.strip_edges() != "":
+		NetworkManager.my_name = name_input.text.strip_edges()
+	else:
+		NetworkManager.my_name = "Player_" + str(randi() % 1000)
+
 	# "Host" now means "Create Private Room" on the Dedicated Server
 	status_label.text = "Status: Creating Room..."
 	host_button.disabled = true
@@ -63,6 +84,12 @@ func _on_host_pressed():
 	NetworkManager.join_game(NetworkManager.server_url, new_room_code)
 
 func _on_join_pressed():
+	# Save Name
+	if name_input and name_input.text.strip_edges() != "":
+		NetworkManager.my_name = name_input.text.strip_edges()
+	else:
+		NetworkManager.my_name = "Player_" + str(randi() % 1000)
+
 	var code = join_input.text.strip_edges().to_upper()
 	if code == "":
 		status_label.text = "Error: Input Room Code"
@@ -84,7 +111,7 @@ func _on_quit_game_pressed():
 
 # --- LOBBY ACTIONS ---
 
-func _on_join_code_ready(code: String):
+func _on_join_room_success(code: String):
 	if code == "":
 		status_label.text = "Error: Lobby Failed"
 		host_button.disabled = false
@@ -109,18 +136,11 @@ func _on_code_copy_pressed():
 	timer.timeout.connect(func(): if code_button: code_button.text = "CODE: " + text)
 
 func _on_start_game_pressed():
-	NetworkManager.start_game.rpc()
+	# Request server to start (we can't call start_game directly anymore)
+	NetworkManager.request_start_game.rpc()
 
 func _on_leave_pressed():
-	# Stop Host/Client
-	if multiplayer.multiplayer_peer:
-		multiplayer.multiplayer_peer.close()
-		multiplayer.multiplayer_peer = null
-		
-	# Update NetworkManager state if needed (clear players)
-	NetworkManager.players.clear()
-	
-	# Reset UI to Main Menu
+	NetworkManager.disconnect_game()
 	_show_main_menu()
 	status_label.text = "Status: Idle"
 
@@ -129,7 +149,24 @@ func _update_lobby_ui():
 	if not player_list or not lobby_ui.visible: return
 	player_list.clear()
 	
-	var players = NetworkManager.players
+	# Use the Room-Specific List
+	var players = NetworkManager.players_in_room
+	var my_id = multiplayer.get_unique_id()
+	var am_i_host = false
+	
 	for id in players:
 		var info = players[id]
-		player_list.add_item(info.get("name", "Unknown"))
+		var txt = info.get("name", "Unknown")
+		if info.get("is_host", false):
+			txt += " [HOST]"
+			if id == my_id: am_i_host = true
+			
+		player_list.add_item(txt)
+
+	# Enable Start Button ONLY if Host
+	if start_button:
+		start_button.disabled = not am_i_host
+		if not am_i_host:
+			start_button.tooltip_text = "Waiting for Host to start..."
+		else:
+			start_button.tooltip_text = ""
