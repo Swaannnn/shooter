@@ -7,6 +7,13 @@ extends CharacterBody3D
 var hud_scene = null
 var shop_scene = null
 var pause_scene = null
+var scoreboard_scene = null # New scoreboard
+
+var hud_instance = null
+var shop_instance = null
+var pause_instance = null
+var scoreboard_instance = null
+
 
 # Audio Resources
 var sound_jump = preload("res://Assets/Sounds/jump.mp3")
@@ -32,9 +39,7 @@ var audio_slide: AudioStreamPlayer = null
 @export var slide_friction = 4.0
 @export var crouch_height_factor = 0.7 # 30% reduction (Factor 0.7)
 
-var hud_instance = null
-var shop_instance = null
-var pause_instance = null
+
 var current_weapon = null
 var is_shop_open = false
 var is_paused = false
@@ -68,7 +73,6 @@ var previous_position: Vector3 = Vector3.ZERO
 
 func _ready():
 	# 1. SETUP COMMON (Visuals, Audio, Components) ============
-	
 	# Camera Find (Needed for attachment of weapons for everyone)
 	camera = _find_camera_node(self)
 	
@@ -115,6 +119,21 @@ func _ready():
 		
 	# 2. AUTHORITY CHECKS (Input, Physics, UI) =================
 	
+	# Check Team (Simple Alternating Assigment based on ID parity for now)
+	var team_id = 1
+	if id % 2 == 0:
+		team_id = 2
+	
+	# Register to GameManager
+	if is_multiplayer_authority():
+		if multiplayer.is_server():
+			GameManager.register_player(id, name, team_id)
+		else:
+			rpc_id(1, "register_request", id, name, team_id)
+
+	# Apply Team Colors
+	_apply_team_color(team_id)
+
 	# Network Authority Check
 	if not is_multiplayer_authority():
 		set_physics_process(false)
@@ -124,7 +143,6 @@ func _ready():
 		if camera:
 			camera.current = false
 			
-		# NOTE: We keep _process(true) for interpolation and visuals!
 		return
 	
 	# --- LOCAL AUTHORITY ONLY BELOW ---
@@ -136,9 +154,12 @@ func _ready():
 	# Authority init
 	sync_position = global_position
 	sync_rotation = global_rotation
-	if camera: 
+	if camera:
 		sync_cam_rotation = camera.rotation.x
 		camera.current = true # Ensure we look through our eyes
+
+	GameManager.game_started.connect(_on_respawn_signal) # Hook for respawn
+
 
 	Input.set_mouse_mode(Input.MOUSE_MODE_CAPTURED)
 	
@@ -146,13 +167,14 @@ func _ready():
 	hud_scene = load("res://Scenes/UI/HUD.tscn")
 	shop_scene = load("res://Scenes/UI/ShopMenu.tscn")
 	pause_scene = load("res://Scenes/UI/PauseMenu.tscn")
+	scoreboard_scene = load("res://Scenes/UI/Scoreboard.tscn")
+
 	
 	# Initialisation du HUD
 	if hud_scene:
 		hud_instance = hud_scene.instantiate()
 
 
-	
 	# Setup Audio
 	audio_jump = AudioStreamPlayer.new()
 	audio_jump.stream = sound_jump
@@ -234,6 +256,13 @@ func _ready():
 	pause_instance.setup(self) # On passe self pour que le menu puisse modifier la sensibilité
 	pause_instance.resume_requested.connect(_toggle_pause)
 	
+	# Initialisation du Scoreboard
+	if scoreboard_scene:
+		scoreboard_instance = scoreboard_scene.instantiate()
+		add_child(scoreboard_instance)
+		scoreboard_instance.visible = false
+
+	
 	# Recherche de l'arme et connexion
 	# Au lieu de 'find', on équipe l'arme par défaut pour tout le monde au spawn
 	# Le host le fait, et les clients le font aussi localement.
@@ -253,6 +282,10 @@ func _on_died():
 	is_dead = true
 	print("Player Died! Switching to Spectator Mode.")
 	
+	# Tell Server we died
+	if is_multiplayer_authority():
+		rpc("notify_death", str(name).to_int())
+	
 	# Désactiver les collisions
 	$CollisionShape3D.disabled = true
 	
@@ -260,10 +293,91 @@ func _on_died():
 	if current_weapon:
 		current_weapon.visible = false
 	
-	# Optionnel: Cacher le HUD ou afficher "DEAD"
-	# if hud_instance: hud_instance.visible = false 
+	# Switch to Spectator
+	_enable_spectator_mode()
+
+@rpc("any_peer")
+func notify_death(id):
+	if multiplayer.is_server():
+		GameManager.player_died(id)
+
+@rpc("any_peer")
+func register_request(pid, pname, pteam):
+	if multiplayer.is_server():
+		GameManager.register_player(pid, pname, pteam)
+
+func _start_spectator():
+	_enable_spectator_mode()
+
+var spectating_target = null
+var spectating_index = 0
+
+func _enable_spectator_mode():
+	var all_players = get_tree().get_nodes_in_group("player")
+	var candidates = []
+	for p in all_players:
+		if p != self and not p.is_dead:
+			candidates.append(p)
+			
+	if candidates.size() > 0:
+		spectating_target = candidates[0]
+	else:
+		spectating_target = null
+
+func _process_spectator(delta):
+	# Spectator Controls
+	if Input.is_action_just_pressed("fire"):
+		_cycle_spectator_target(1)
+	elif Input.is_action_just_pressed("aim"): # Right Click
+		_cycle_spectator_target(-1)
+		
+	# If target invalid, cycle
+	if spectating_target and (not is_instance_valid(spectating_target) or spectating_target.is_dead):
+		_cycle_spectator_target(1)
+		
+	# Match Camera
+	if spectating_target and is_instance_valid(spectating_target) and spectating_target.camera:
+		camera.global_transform = spectating_target.camera.global_transform
+
+func _cycle_spectator_target(dir):
+	var all_players = get_tree().get_nodes_in_group("player")
+	var candidates = []
+	for p in all_players:
+		if p != self and not p.is_dead:
+			candidates.append(p)
 	
-	# On garde la caméra active, mais on change la logique de mouvement dans physics_process
+	if candidates.size() == 0:
+		spectating_target = null
+		return
+		
+	spectating_index = (spectating_index + dir) % candidates.size()
+	spectating_target = candidates[spectating_index]
+
+func _on_respawn_signal():
+	# Reset
+	is_dead = false
+	$CollisionShape3D.disabled = false
+	if current_weapon: current_weapon.visible = true
+	
+	# Random Spawn (TODO: Use real spawn points)
+	global_position = Vector3(randf_range(-5, 5), 5, randf_range(-5, 5))
+	velocity = Vector3.ZERO
+	
+	var health_comp = get_node_or_null("HealthComponent")
+	if health_comp: health_comp.reset_health()
+	
+	camera.current = true
+
+func _apply_team_color(t_id):
+	if has_node("CollisionShape3D/BodyMesh"):
+		var mesh_inst = $CollisionShape3D/BodyMesh
+		var new_mat = StandardMaterial3D.new()
+		if t_id == 1:
+			new_mat.albedo_color = Color(0.2, 0.5, 1.0) # Blue
+		else:
+			new_mat.albedo_color = Color(1.0, 0.2, 0.2) # Red
+		mesh_inst.material_override = new_mat
+
 
 func _on_quit_game():
 	# Retour Lobby propre via NetworkManager
@@ -476,9 +590,14 @@ func _process(delta):
 		# Smooth Rotation (Y quaternion slerp would be better but lerp angle is okay for Y)
 		rotation.y = lerp_angle(rotation.y, sync_rotation.y, 20.0 * delta)
 		
-		# Smooth Camera Look (Up/Down)
+	# Smooth Camera Look (Up/Down)
 		if camera:
 			camera.rotation.x = lerp_angle(camera.rotation.x, sync_cam_rotation, 20.0 * delta)
+	
+	if is_dead and is_multiplayer_authority():
+		_process_spectator(delta)
+		return
+
 	
 	# Visual Update for Stance (Local AND Remote)
 	# This ensures remotes see the stance change via sync_stance
@@ -596,12 +715,10 @@ func _physics_process(delta):
 	if is_sliding:
 		# LOGIQUE DE GLISSADE
 		# On ignore les inputs de déplacement, on continue sur la lancée avec friction
-		
 		# Problème user: "la glissade se fait dans le sens de la course, pas le sens de la camera"
 		# Current implementation already USES `velocity` (via flat_vel) which is the movement direction.
 		# `slide_vector` was set in the trigger block BEFORE this.
 		# Check the Trigger block (see around line 565)
-		
 		# Appliquer une friction pour ralentir le slide
 		var flat_vel = Vector2(velocity.x, velocity.z)
 		# Ralentissement (Lerp vers 0)
@@ -654,7 +771,6 @@ func _physics_process(delta):
 # Fonction helper pour animer les visuels en fonction de la stance
 func _update_stance_visuals(stance: int, delta: float):
 	# stance: 0=Stand, 1=Crouch, 2=Slide
-	
 	# 1. Determine Effective Velocity (Visual)
 	var visual_velocity = velocity
 	if not is_multiplayer_authority():
@@ -689,7 +805,7 @@ func _update_stance_visuals(stance: int, delta: float):
 			# Height scaling
 			var target_scale_y = 1.0
 			if stance == 1: target_scale_y = crouch_height_factor # 0.7 now
-			if stance == 2: target_scale_y = 1.0 
+			if stance == 2: target_scale_y = 1.0
 			
 			mesh.scale.y = move_toward(mesh.scale.y, target_scale_y, 10.0 * delta)
 			
@@ -703,7 +819,7 @@ func _update_stance_visuals(stance: int, delta: float):
 			if stance == 2: # Slide
 				if visual_velocity.length() > 0.1:
 					var velocity_local = global_transform.basis.inverse() * visual_velocity
-					velocity_local.y = 0 
+					velocity_local.y = 0
 					if velocity_local.length() > 0.1:
 						target_mesh_rot_y = Vector3.FORWARD.signed_angle_to(velocity_local.normalized(), Vector3.UP)
 			
@@ -721,7 +837,7 @@ func _update_stance_visuals(stance: int, delta: float):
 			var shp = collision_shape.shape
 			var target_h = original_capsule_height
 			
-			if stance != 0: 
+			if stance != 0:
 				target_h = original_capsule_height * crouch_height_factor
 			
 			# Modif Hauteur Physics (Smooth)
@@ -733,6 +849,6 @@ func _update_stance_visuals(stance: int, delta: float):
 			# Modif Position Physics (Calculé sur la hauteur COURANTE pour garder pieds au sol)
 			# Center Offset = -(Diff / 2) -> (Orig - Curr) / 2
 			var height_diff = original_capsule_height - new_h
-			var center_offset = -(height_diff / 2.0)
+			var center_offset = - (height_diff / 2.0)
 			
 			collision_shape.position.y = center_offset
